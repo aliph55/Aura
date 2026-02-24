@@ -1,4 +1,4 @@
-package com.aura
+package com.alidev.aura
 
 import android.app.Application
 import com.facebook.react.PackageList

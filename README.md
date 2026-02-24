@@ -95,3 +95,6 @@ To learn more about React Native, take a look at the following resources:
 - [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+PS C:\Users\ali\Documents\Codding\Aura> keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android
+
+PS C:\Users\ali\Documents\Codding\Aura> keytool -list -v -keystore android/app/release.keystore -alias myappkey -storepass android -keypass android

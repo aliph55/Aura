@@ -8,3 +8,13 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+# React Native
+-keep class com.facebook.react.** { *; }
+-keep class com.facebook.hermes.** { *; }
+-keep class com.swmansion.** { *; }
+
+# Google Sign In
+-keep class com.google.android.gms.** { *; }
+
+# Safe Area Context
+-keep class com.th3rdwave.safeareacontext.** { *; }

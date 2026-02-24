@@ -1,4 +1,4 @@
-package com.aura
+package com.alidev.aura
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

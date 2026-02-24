@@ -1,0 +1,63 @@
+{
+  "project_info": {
+    "project_number": "799076129257",
+    "project_id": "rosy-environs-488218-q1",
+    "storage_bucket": "rosy-environs-488218-q1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:799076129257:android:88a91c3ac97d5f4c4b1378",
+        "android_client_info": {
+          "package_name": "com.alidev.aura"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "799076129257-2s3d5jl07qiv74sk8gqjn5k1ri8q85gt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alidev.aura",
+            "certificate_hash": "d446bd182589955456a98eed18fc7fe171393e86"
+          }
+        },
+        {
+          "client_id": "799076129257-e8rncel97hasljhl84m979gohalfgk8u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alidev.aura",
+            "certificate_hash": "d139226dfa9929f6861040ad690adae8f6b72f06"
+          }
+        },
+        {
+          "client_id": "799076129257-gu4u4v8v1iqk7impn6jshjdh4cjvh5qf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alidev.aura",
+            "certificate_hash": "910546c60c8aee739b7db8625b3c9f5fa25575d3"
+          }
+        },
+        {
+          "client_id": "799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDt0B4pfvMVsYF-xrXdY6Itxa3LNUQxOkA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
