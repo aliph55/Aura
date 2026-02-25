@@ -1,12 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native';
 import React from 'react';
-import GoogleAuthScreen from './screens/GoogleAuthScreen ';
+import { AdsProvider } from './contexts/adsContext';
+import Home from './screens/Home';
 
 const App = () => {
   return (
-    <View style={{ flex: 1, alignContent: 'center' }}>
-      <GoogleAuthScreen />
-    </View>
+    <AdsProvider>
+      <View style={{ flex: 1, alignContent: 'center' }}>
+        <Home />
+      </View>
+    </AdsProvider>
   );
 };
 
