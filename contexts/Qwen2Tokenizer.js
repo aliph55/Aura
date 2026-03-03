@@ -1,6 +1,3 @@
-// Qwen2Tokenizer.js
-// Qwen2 BPE tokenizer - React Native compatible (no import.meta)
-
 export class Qwen2Tokenizer {
   constructor() {
     this.vocab = null;
@@ -10,40 +7,31 @@ export class Qwen2Tokenizer {
       '<|im_end|>': 151645,
       '<|endoftext|>': 151643,
     };
-    this.eosTokenId = 151645; // <|im_end|>
+    this.eosTokenId = 151645;
     this.bytesToUnicode = this._buildBytesToUnicode();
-    this.unicodeToBytes = Object.fromEntries(
-      Object.entries(this.bytesToUnicode).map(([k, v]) => [v, parseInt(k)])
-    );
+    // unicodeToBytes → bytesToUnicode'un tam tersi
+    this.unicodeToBytes = {};
+    for (const [byteVal, uChar] of Object.entries(this.bytesToUnicode)) {
+      this.unicodeToBytes[uChar] = parseInt(byteVal);
+    }
   }
 
   _buildBytesToUnicode() {
-    const bs = [
-      ...Array.from({ length: '~'.charCodeAt(0) - '!'.charCodeAt(0) + 1 }, (_, i) => i + '!'.charCodeAt(0)),
-      ...Array.from({ length: '¬'.charCodeAt(0) - '¡'.charCodeAt(0) + 1 }, (_, i) => i + '¡'.charCodeAt(0)),
-      ...Array.from({ length: 'ÿ'.charCodeAt(0) - '®'.charCodeAt(0) + 1 }, (_, i) => i + '®'.charCodeAt(0)),
-    ];
-    const cs = [...bs];
+    const map = {};
+    // Printable ASCII
+    for (let i = 33; i <= 126; i++) map[i] = String.fromCharCode(i);
+    // Latin supplement
+    for (let i = 161; i <= 172; i++) map[i] = String.fromCharCode(i);
+    for (let i = 174; i <= 255; i++) map[i] = String.fromCharCode(i);
+    // Kalan byte'lar 256+ unicode'a map'lenir
     let n = 0;
     for (let b = 0; b < 256; b++) {
-      if (!bs.includes(b)) {
-        bs.push(b);
-        cs.push(256 + n);
+      if (map[b] === undefined) {
+        map[b] = String.fromCharCode(256 + n);
         n++;
       }
     }
-    return Object.fromEntries(bs.map((b, i) => [b, String.fromCharCode(cs[i])]));
-  }
-
-  async load(tokenizerJson) {
-    // tokenizerJson: parsed JSON from tokenizer.json
-    const model = tokenizerJson.model;
-    this.vocab = model.vocab;
-    this.merges = new Map();
-    model.merges.forEach((merge, idx) => {
-      this.merges.set(merge, idx);
-    });
-    console.log('✅ Qwen2 tokenizer loaded, vocab size:', Object.keys(this.vocab).length);
+    return map;
   }
 
   _getBPEPairs(word) {
@@ -71,7 +59,6 @@ export class Qwen2Tokenizer {
           bigram = pair;
         }
       }
-
       if (!bigram || !this.merges.has(bigram)) break;
 
       const [first, second] = bigram.split(' ');
@@ -85,7 +72,11 @@ export class Qwen2Tokenizer {
         }
         newWord.push(...word.slice(i, j));
         i = j;
-        if (word[i] === first && i + 1 < word.length && word[i + 1] === second) {
+        if (
+          word[i] === first &&
+          i + 1 < word.length &&
+          word[i + 1] === second
+        ) {
           newWord.push(first + second);
           i += 2;
         } else {
@@ -102,19 +93,14 @@ export class Qwen2Tokenizer {
 
   encode(text) {
     if (!this.vocab || !this.merges) throw new Error('Tokenizer not loaded');
-
     const ids = [];
-    // Basit regex ile word tokenize (Qwen2 pattern)
-    const pattern = /'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+/gu;
+    const pattern =
+      /'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+/gu;
     const tokens = text.match(pattern) || [];
-
     for (const token of tokens) {
-      // Byte encode
-      const byteEncoded = Array.from(new TextEncoder().encode(token))
-        .map(b => this.bytesToUnicode[b])
-        .join('');
-
-      // BPE
+      // TextEncoder yerine manuel UTF-8
+      const bytes = this._utf8Encode(token);
+      const byteEncoded = bytes.map(b => this.bytesToUnicode[b]).join('');
       const bpeResult = this._bpe(byteEncoded);
       for (const bpeToken of bpeResult.split(' ')) {
         if (this.vocab[bpeToken] !== undefined) {
@@ -125,42 +111,149 @@ export class Qwen2Tokenizer {
     return ids;
   }
 
+  _utf8Encode(str) {
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+      let cp = str.codePointAt(i);
+      if (cp > 0xffff) i++; // surrogate pair
+      if (cp < 0x80) {
+        bytes.push(cp);
+      } else if (cp < 0x800) {
+        bytes.push(0xc0 | (cp >> 6));
+        bytes.push(0x80 | (cp & 0x3f));
+      } else if (cp < 0x10000) {
+        bytes.push(0xe0 | (cp >> 12));
+        bytes.push(0x80 | ((cp >> 6) & 0x3f));
+        bytes.push(0x80 | (cp & 0x3f));
+      } else {
+        bytes.push(0xf0 | (cp >> 18));
+        bytes.push(0x80 | ((cp >> 12) & 0x3f));
+        bytes.push(0x80 | ((cp >> 6) & 0x3f));
+        bytes.push(0x80 | (cp & 0x3f));
+      }
+    }
+    return bytes;
+  }
+
   decode(ids) {
     if (!this.vocab) throw new Error('Tokenizer not loaded');
-    const reverseVocab = Object.fromEntries(
-      Object.entries(this.vocab).map(([k, v]) => [v, k])
+    const tokens = ids
+      .filter(id => !Object.values(this.specialTokens).includes(id))
+      .map(id => this.reverseVocab[id] || '');
+
+    const combined = tokens.join('');
+
+    const bytes = [];
+    for (const char of combined) {
+      const byte = this.unicodeToBytes[char];
+      if (byte !== undefined) {
+        bytes.push(byte);
+      } else {
+        // Bilinmeyen karakter direkt ekle
+        for (let i = 0; i < char.length; i++) {
+          bytes.push(char.charCodeAt(i));
+        }
+      }
+    }
+
+    // TextDecoder yerine manuel UTF-8 decode
+    return this._utf8Decode(bytes);
+  }
+
+  _utf8Decode(bytes) {
+    let result = '';
+    let i = 0;
+    while (i < bytes.length) {
+      const byte = bytes[i];
+      if (byte < 0x80) {
+        // 1 byte: ASCII
+        result += String.fromCharCode(byte);
+        i++;
+      } else if ((byte & 0xe0) === 0xc0) {
+        // 2 byte
+        if (i + 1 < bytes.length) {
+          const cp = ((byte & 0x1f) << 6) | (bytes[i + 1] & 0x3f);
+          result += String.fromCodePoint(cp);
+          i += 2;
+        } else {
+          i++;
+        }
+      } else if ((byte & 0xf0) === 0xe0) {
+        // 3 byte
+        if (i + 2 < bytes.length) {
+          const cp =
+            ((byte & 0x0f) << 12) |
+            ((bytes[i + 1] & 0x3f) << 6) |
+            (bytes[i + 2] & 0x3f);
+          result += String.fromCodePoint(cp);
+          i += 3;
+        } else {
+          i++;
+        }
+      } else if ((byte & 0xf8) === 0xf0) {
+        // 4 byte
+        if (i + 3 < bytes.length) {
+          const cp =
+            ((byte & 0x07) << 18) |
+            ((bytes[i + 1] & 0x3f) << 12) |
+            ((bytes[i + 2] & 0x3f) << 6) |
+            (bytes[i + 3] & 0x3f);
+          result += String.fromCodePoint(cp);
+          i += 4;
+        } else {
+          i++;
+        }
+      } else {
+        i++;
+      }
+    }
+    return result;
+  }
+
+  async load(tokenizerJson) {
+    const model = tokenizerJson.model;
+    this.vocab = model.vocab;
+    this.merges = new Map();
+    model.merges.forEach((merge, idx) => this.merges.set(merge, idx));
+    this.reverseVocab = Object.fromEntries(
+      Object.entries(this.vocab).map(([k, v]) => [v, k]),
     );
 
-    let text = ids
-      .filter(id => !Object.values(this.specialTokens).includes(id))
-      .map(id => reverseVocab[id] || '')
-      .join('');
-
-    // Byte decode
-    try {
-      const bytes = Array.from(text).map(c => this.unicodeToBytes[c]).filter(b => b !== undefined);
-      return new TextDecoder().decode(new Uint8Array(bytes));
-    } catch {
-      return text;
-    }
+    // Debug
+    console.log('Ġ→byte:', this.unicodeToBytes['Ġ']); // 32 olmalı
+    console.log('32→char:', this.bytesToUnicode[32]); // Ġ olmalı
+    console.log('✅ Tokenizer loaded, vocab:', Object.keys(this.vocab).length);
   }
 
   encodeChat(systemPrompt, userMessage, history = []) {
-    let text = `<|im_start|>system\n${systemPrompt}<|im_end|>\n`;
-    for (const [userMsg, assistantMsg] of history) {
-      text += `<|im_start|>user\n${userMsg}<|im_end|>\n<|im_start|>assistant\n${assistantMsg}<|im_end|>\n`;
-    }
-    text += `<|im_start|>user\n${userMessage}<|im_end|>\n<|im_start|>assistant\n`;
-
     const ids = [];
-    // Split on special tokens
-    const parts = text.split(/(<\|im_start\|>|<\|im_end\|>|\n)/);
-    for (const part of parts) {
-      if (part === '<|im_start|>') { ids.push(151644); }
-      else if (part === '<|im_end|>') { ids.push(151645); }
-      else if (part === '\n') { ids.push(...this.encode('\n')); }
-      else if (part.length > 0) { ids.push(...this.encode(part)); }
+
+    // System
+    ids.push(151644); // <|im_start|>
+    ids.push(...this.encode('system\n' + systemPrompt));
+    ids.push(151645); // <|im_end|>
+    ids.push(...this.encode('\n'));
+
+    // History
+    for (const [userMsg, assistantMsg] of history) {
+      ids.push(151644);
+      ids.push(...this.encode('user\n' + userMsg));
+      ids.push(151645);
+      ids.push(...this.encode('\n'));
+      ids.push(151644);
+      ids.push(...this.encode('assistant\n' + assistantMsg));
+      ids.push(151645);
+      ids.push(...this.encode('\n'));
     }
+
+    // Current user message
+    ids.push(151644);
+    ids.push(...this.encode('user\n' + userMessage));
+    ids.push(151645);
+    ids.push(...this.encode('\n'));
+    ids.push(151644);
+    ids.push(...this.encode('assistant\n'));
+
     return ids;
   }
 }

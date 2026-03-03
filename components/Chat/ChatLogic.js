@@ -6,12 +6,12 @@ import { showRewardedAd } from '../adsService';
 import { useModel } from '../../contexts/ModelContext';
 
 // Qwen2 chat format
-const SYSTEM_PROMPT = `You are a helpful multilingual assistant. Always respond in the same language as the user. If the user writes in Turkish, respond in Turkish. If in English, respond in English, and so on.`;
+const SYSTEM_PROMPT = `You are a helpful multilingual assistant.`;
 
 const NUM_LAYERS = 24; // Qwen2-0.5B layer sayısı
 const NUM_KV_HEADS = 2; // Qwen2-0.5B KV head sayısı
 const HEAD_DIM = 64; // Head boyutu
-const MAX_NEW_TOKENS = 200;
+const MAX_NEW_TOKENS = 500;
 const TIMER_SECONDS = 420;
 
 // Qwen2 chat template
@@ -70,9 +70,7 @@ export const useChatLogic = ({ route, navigation }) => {
   const tokenize = useCallback(
     text => {
       if (!tokenizerRef?.current) throw new Error('Tokenizer not loaded');
-      // @xenova/transformers tokenizer kullanımı
-      const encoded = tokenizerRef.current(text, { return_tensors: false });
-      return encoded.input_ids;
+      return tokenizerRef.current.encode(text); // ← .encode() kullan
     },
     [tokenizerRef],
   );
@@ -80,9 +78,7 @@ export const useChatLogic = ({ route, navigation }) => {
   const decode = useCallback(
     tokenIds => {
       if (!tokenizerRef?.current) return '';
-      return tokenizerRef.current.decode(tokenIds, {
-        skip_special_tokens: true,
-      });
+      return tokenizerRef.current.decode(tokenIds); // ← sadece decode()
     },
     [tokenizerRef],
   );
@@ -90,14 +86,20 @@ export const useChatLogic = ({ route, navigation }) => {
   // ─── Token Sampling ──────────────────────────────────────────────────────────
 
   const sampleToken = (logits, temperature = 0.7, topP = 0.9) => {
-    // Temperature scaling
     const scaled = logits.map(l => l / temperature);
-    const maxVal = Math.max(...scaled);
+
+    // Math.max(...) yerine döngü kullan
+    let maxVal = scaled[0];
+    for (let i = 1; i < scaled.length; i++) {
+      if (scaled[i] > maxVal) maxVal = scaled[i];
+    }
+
     const expVals = scaled.map(l => Math.exp(l - maxVal));
-    const sum = expVals.reduce((a, b) => a + b, 0);
+    let sum = 0;
+    for (let i = 0; i < expVals.length; i++) sum += expVals[i];
     const probs = expVals.map(e => e / sum);
 
-    // Top-p (nucleus) sampling
+    // Top-p sampling
     const sorted = probs.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
 
     let cumSum = 0;
@@ -123,9 +125,15 @@ export const useChatLogic = ({ route, navigation }) => {
     async userMessage => {
       if (!sessionRef?.current) throw new Error('Model not loaded');
 
-      const prompt = buildPrompt(userMessage, historyRef.current);
-      const inputIds = tokenize(prompt);
+      const inputIds = tokenizerRef.current.encodeChat(
+        SYSTEM_PROMPT,
+        userMessage,
+        historyRef.current,
+      );
+
       const seqLen = inputIds.length;
+
+      console.log('📝 Prompt length:', seqLen, 'tokens');
 
       let currentInputIds = new BigInt64Array(inputIds.map(BigInt));
       let attentionMask = new BigInt64Array(seqLen).fill(1n);
@@ -160,6 +168,12 @@ export const useChatLogic = ({ route, navigation }) => {
 
           const results = await sessionRef.current.run(feeds);
 
+          // İlk adımda output key'lerini logla
+          if (step === 0) {
+            console.log('📤 Output keys:', Object.keys(results));
+            console.log('📊 Logits dims:', results.logits?.dims);
+          }
+
           // Logits al
           const logits = results.logits.data;
           const vocabSize = results.logits.dims[2];
@@ -169,14 +183,31 @@ export const useChatLogic = ({ route, navigation }) => {
 
           // Token seç
           const nextTokenId = sampleToken(lastLogits);
+
+          // EOS kontrolü - push'tan ÖNCE
+          if (
+            nextTokenId === 151645 ||
+            nextTokenId === 151643 ||
+            nextTokenId === 151644
+          ) {
+            console.log('✅ EOS token, stopping');
+            break;
+          }
+
+          // Token ekle - SADECE BİR KEZ
           generatedIds.push(nextTokenId);
 
           // Decode et
           fullText = decode(generatedIds);
           setStreamingText(fullText);
 
-          // EOS kontrolü
-          if (nextTokenId === 151645) break; // Qwen2 <|im_end|> token id
+          if (step < 5) {
+            console.log(
+              `Step ${step}: token=${nextTokenId}, text="${decode([
+                nextTokenId,
+              ])}"`,
+            );
+          }
 
           // Sonraki adım için güncelle
           currentInputIds = new BigInt64Array([BigInt(nextTokenId)]);
@@ -193,13 +224,14 @@ export const useChatLogic = ({ route, navigation }) => {
           }
           pastKV = newPastKV;
 
-          // UI güncellemesi için kısa bekleme
+          // UI güncellemesi
           await new Promise(r => setTimeout(r, 10));
         }
       } finally {
         setIsStreaming(false);
       }
 
+      console.log('✅ Final response:', fullText);
       return fullText || 'No response generated.';
     },
     [sessionRef, tokenizerRef],

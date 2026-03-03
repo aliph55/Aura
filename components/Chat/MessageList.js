@@ -8,9 +8,8 @@ const MessageList = ({
   messages,
   modelLoaded,
   isStreaming,
+  streamingText,
   scrollViewRef,
-  currentStreamingMessage,
-  streamingComplete,
 }) => {
   return (
     <ScrollView
@@ -29,8 +28,7 @@ const MessageList = ({
       ))}
       <StreamingMessage
         isStreaming={isStreaming}
-        currentStreamingMessage={currentStreamingMessage}
-        streamingComplete={streamingComplete}
+        streamingText={streamingText}
       />
     </ScrollView>
   );

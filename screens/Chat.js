@@ -12,6 +12,7 @@ import MessageList from '../components/Chat/MessageList';
 import ChatInput from '../components/Chat/ChatInput';
 import GroupNameModal from '../components/Chat/GroupNameModal';
 import styles from '../components/Chat/styles';
+import { useModel } from '../contexts/ModelContext';
 
 const Chat = ({ route, navigation }) => {
   const {
@@ -33,7 +34,7 @@ const Chat = ({ route, navigation }) => {
     formatTime,
   } = useChatLogic({ route, navigation });
 
-  const { isLoading } = require('../contexts/ModelContext').useModel();
+  const { isLoading } = useModel();
 
   React.useLayoutEffect(() => {
     const timeString = formatTime();

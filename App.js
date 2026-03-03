@@ -8,6 +8,8 @@ import { ModelProvider } from './contexts/ModelContext';
 import Download from './screens/Download';
 import Presentation from './screens/Presentation';
 import GoogleAuthScreen from './screens/GoogleAuthScreen ';
+import Chat from './screens/Chat';
+import History from './screens/History';
 
 const Stack = createNativeStackNavigator();
 
@@ -54,6 +56,14 @@ const App = () => {
               }}
               component={GoogleAuthScreen}
             />
+            <Stack.Screen
+              name="History"
+              options={{
+                headerShown: false,
+              }}
+              component={History}
+            />
+            <Stack.Screen name="Chat" component={Chat} />
           </Stack.Navigator>
         </NavigationContainer>
       </ModelProvider>

@@ -16,10 +16,10 @@ import { useModel } from '../contexts/ModelContext';
 const { width, height } = Dimensions.get('window');
 
 const MODEL_URL =
-  'https://model-bucket-ali.s3.us-east-005.backblazeb2.com/model.onnx';
+  'https://media.githubusercontent.com/media/aliph55/qwen-model/refs/heads/master/qwen-int8.onnx';
 const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/model.onnx`;
-const EXPECTED_MODEL_SIZE = 649048064;
-const MIN_VALID_SIZE = 480000000;
+const EXPECTED_MODEL_SIZE = 649048012;
+const MIN_VALID_SIZE = 600000000;
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
