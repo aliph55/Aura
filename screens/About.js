@@ -9,7 +9,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -17,6 +17,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 const About = ({ navigation }) => {
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const clearAllChat = async () => {
     Alert.alert(
@@ -73,7 +74,7 @@ const About = ({ navigation }) => {
     <>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: insets.bottom }]}>
         {/* Animated Background */}
         <View style={styles.bgGradient1} />
         <View style={styles.bgGradient2} />
@@ -81,7 +82,10 @@ const About = ({ navigation }) => {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 40 }, // ekstra rahatlık için +40
+          ]}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -269,6 +273,10 @@ const About = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0f172a',

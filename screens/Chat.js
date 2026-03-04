@@ -13,6 +13,7 @@ import ChatInput from '../components/Chat/ChatInput';
 import GroupNameModal from '../components/Chat/GroupNameModal';
 import styles from '../components/Chat/styles';
 import { useModel } from '../contexts/ModelContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Chat = ({ route, navigation }) => {
   const {
@@ -33,6 +34,7 @@ const Chat = ({ route, navigation }) => {
     sendMessage,
     formatTime,
   } = useChatLogic({ route, navigation });
+  const insets = useSafeAreaInsets();
 
   const { isLoading } = useModel();
 
@@ -90,32 +92,34 @@ const Chat = ({ route, navigation }) => {
   }, [navigation, title, formatTime, modelLoaded, isLoading, startNewGroup]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <MessageList
-        messages={messages}
-        modelLoaded={modelLoaded}
-        isStreaming={isStreaming}
-        streamingText={streamingText}
-        scrollViewRef={scrollViewRef}
-      />
-      <ChatInput
-        inputText={inputText}
-        setInputText={setInputText}
-        modelLoaded={modelLoaded}
-        isStreaming={isStreaming}
-        sendMessage={sendMessage}
-      />
-      <GroupNameModal
-        isGroupNameModalVisible={isGroupNameModalVisible}
-        setGroupNameModalVisible={setGroupNameModalVisible}
-        newGroupName={newGroupName}
-        setNewGroupName={setNewGroupName}
-        updateGroupName={updateGroupName}
-      />
-    </KeyboardAvoidingView>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <MessageList
+          messages={messages}
+          modelLoaded={modelLoaded}
+          isStreaming={isStreaming}
+          streamingText={streamingText}
+          scrollViewRef={scrollViewRef}
+        />
+        <ChatInput
+          inputText={inputText}
+          setInputText={setInputText}
+          modelLoaded={modelLoaded}
+          isStreaming={isStreaming}
+          sendMessage={sendMessage}
+        />
+        <GroupNameModal
+          isGroupNameModalVisible={isGroupNameModalVisible}
+          setGroupNameModalVisible={setGroupNameModalVisible}
+          newGroupName={newGroupName}
+          setNewGroupName={setNewGroupName}
+          updateGroupName={updateGroupName}
+        />
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
