@@ -205,7 +205,7 @@ export const showInterstitialAd = async () => {
   }
 
   if (!isInitialized) {
-    Alert.alert('Uyarı', 'Reklam sistemi henüz hazır değil.');
+    //  Alert.alert('Uyarı', 'Reklam sistemi henüz hazır değil.');
     return false;
   }
 
@@ -221,7 +221,7 @@ export const showInterstitialAd = async () => {
     }
   } else {
     console.log('⚠️ Interstitial henüz hazır değil, yükleniyor...');
-    Alert.alert('Uyarı', 'Reklam henüz yüklenmedi. Lütfen bekleyin.');
+    //  Alert.alert('Uyarı', 'Reklam henüz yüklenmedi. Lütfen bekleyin.');
     if (interstitial) interstitial.load();
     return false;
   }
@@ -238,7 +238,7 @@ export const showRewardedAd = () => {
     }
 
     if (!isInitialized) {
-      Alert.alert('Uyarı', 'Reklam sistemi henüz hazır değil.');
+      //  Alert.alert('Uyarı', 'Reklam sistemi henüz hazır değil.');
       return reject(new Error('Ads not initialized'));
     }
 
@@ -261,7 +261,7 @@ export const showRewardedAd = () => {
       }
     } else {
       console.log('⚠️ Rewarded henüz hazır değil, yükleniyor...');
-      Alert.alert('Uyarı', 'Ödüllü reklam henüz yüklenmedi. Lütfen bekleyin.');
+      //  Alert.alert('Uyarı', 'Ödüllü reklam henüz yüklenmedi. Lütfen bekleyin.');
       if (rewarded) rewarded.load();
       reject(new Error('Ad not loaded'));
     }

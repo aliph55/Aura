@@ -7,6 +7,8 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
 import { useChatLogic } from '../components/Chat/ChatLogic';
 import MessageList from '../components/Chat/MessageList';
 import ChatInput from '../components/Chat/ChatInput';
@@ -51,6 +53,12 @@ const Chat = ({ route, navigation }) => {
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.navigationHeaderTitle}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Home')}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+          >
+            <MaterialIcons name="arrow-back" size={28} color="#e2e8f0" />
+          </TouchableOpacity>
           <Text style={styles.navigationTitle}>{title || 'Chat'}</Text>
           <Text style={styles.navigationTime}>{timeString}</Text>
           {showAdWarning && (
@@ -88,6 +96,9 @@ const Chat = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       ),
+      headerLeft: () => null, // default back'i temizle
+      headerBackVisible: true, // zorla göster (bazen işe yarıyor)
+      headerBackTitleVisible: false,
     });
   }, [navigation, title, formatTime, modelLoaded, isLoading, startNewGroup]);
 

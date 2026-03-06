@@ -220,7 +220,7 @@ const Download = ({ onDownloadComplete }) => {
 
 2️⃣ Download Manually
    • URL: https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx
-   • Size: ~460 MB
+   • Size: ~650 MB
    • Place in: android/app/src/main/assets/model.onnx
    • Rebuild app: npm run android
 
@@ -403,7 +403,7 @@ Or try downloading again with "Try Again" button.`;
                 </View>
                 <View style={styles.infoDivider} />
                 <Text style={styles.infoText}>
-                  • Model download required on first use{'\n'}• File size: ~460
+                  • Model download required on first use{'\n'}• File size: ~650
                   MB
                   {'\n'}• One-time process{'\n'}• May take a few minutes
                 </Text>

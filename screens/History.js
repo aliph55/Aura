@@ -6,17 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Platform,
-  Dimensions,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from 'react-native-linear-gradient';
 
-const { width } = Dimensions.get('window');
-
 const History = ({ navigation }) => {
   const [chats, setChats] = useState([]);
+  const insets = useSafeAreaInsets();
 
   const loadChats = async () => {
     try {
@@ -30,13 +29,11 @@ const History = ({ navigation }) => {
       const allChats = parsedGroups
         .flatMap(group =>
           group.chats.map(chat => {
-            // Get the last message for preview
             const lastMessage =
               chat.messages && chat.messages.length > 0
                 ? chat.messages[chat.messages.length - 1]
                 : null;
 
-            // Create preview based on last message
             let preview = 'No messages yet';
             if (lastMessage) {
               if (lastMessage.sender === 'ai') {
@@ -55,7 +52,7 @@ const History = ({ navigation }) => {
               title: chat.title || 'New Chat',
               preview: preview,
               time: formatDate(chat.lastOpened),
-              lastOpened: chat.lastOpened, // Keep raw date for sorting
+              lastOpened: chat.lastOpened,
               groupId: group.id,
               messageCount: chat.messages ? chat.messages.length : 0,
             };
@@ -80,9 +77,9 @@ const History = ({ navigation }) => {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -104,7 +101,6 @@ const History = ({ navigation }) => {
                 : g,
             );
 
-            // Remove groups with no chats
             groups = groups.filter(g => g.chats.length > 0);
             await AsyncStorage.setItem('groups', JSON.stringify(groups));
             setChats(prev => prev.filter(c => c.id !== chatId));
@@ -122,7 +118,6 @@ const History = ({ navigation }) => {
       const existing = await AsyncStorage.getItem('groups');
       let groups = existing ? JSON.parse(existing) : [];
 
-      // Find or create General group
       let generalGroup = groups.find(g => g.name === 'General');
 
       const newChatId = Date.now().toString();
@@ -135,7 +130,6 @@ const History = ({ navigation }) => {
       };
 
       if (generalGroup) {
-        // Add to existing General group
         groups = groups.map(g =>
           g.id === generalGroup.id ? { ...g, chats: [...g.chats, newChat] } : g,
         );
@@ -146,7 +140,6 @@ const History = ({ navigation }) => {
           chatId: newChatId,
         });
       } else {
-        // Create new General group
         const newGroupId = Date.now().toString();
         const newGroup = {
           id: newGroupId,
@@ -176,7 +169,7 @@ const History = ({ navigation }) => {
   const renderItem = ({ item, index }) => (
     <TouchableOpacity
       style={styles.chatCard}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
       onPress={() =>
         navigation.navigate('Chat', {
           groupId: item.groupId,
@@ -185,354 +178,373 @@ const History = ({ navigation }) => {
       }
     >
       <LinearGradient
-        colors={
-          index % 3 === 0
-            ? ['rgba(139, 92, 246, 0.15)', 'rgba(139, 92, 246, 0.05)']
-            : index % 3 === 1
-            ? ['rgba(236, 72, 153, 0.15)', 'rgba(236, 72, 153, 0.05)']
-            : ['rgba(59, 130, 246, 0.15)', 'rgba(59, 130, 246, 0.05)']
-        }
-        style={styles.chatGradient}
+        colors={['rgba(30, 41, 59, 0.88)', 'rgba(15, 23, 42, 0.94)']}
+        style={styles.chatCardGradient}
       >
-        <View style={styles.chatIconWrapper}>
-          <LinearGradient
-            colors={
+        <View
+          style={[
+            styles.colorAccent,
+            index % 3 === 0
+              ? { backgroundColor: 'rgba(139, 92, 246, 0.10)' }
+              : index % 3 === 1
+              ? { backgroundColor: 'rgba(236, 72, 153, 0.10)' }
+              : { backgroundColor: 'rgba(59, 130, 246, 0.10)' },
+          ]}
+        />
+
+        <View style={styles.chatMainRow}>
+          <View
+            style={[
+              styles.chatIconWrapper,
               index % 3 === 0
-                ? ['#8B5CF6', '#7C3AED']
+                ? styles.purpleIcon
                 : index % 3 === 1
-                ? ['#EC4899', '#DB2777']
-                : ['#3B82F6', '#2563EB']
-            }
-            style={styles.chatIcon}
+                ? styles.pinkIcon
+                : styles.blueIcon,
+            ]}
           >
-            <Icon name="message-circle" size={20} color="#fff" />
-          </LinearGradient>
+            <Icon name="message-circle" size={22} color="#ffffff" />
+          </View>
+
+          <View style={styles.chatContent}>
+            <Text style={styles.chatTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={styles.chatPreview} numberOfLines={2}>
+              {item.preview}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            onPress={() => deleteChat(item.id, item.groupId)}
+          >
+            <Icon name="trash-2" size={20} color="#f87171" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.chatContent}>
-          <Text style={styles.chatTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.chatPreview} numberOfLines={1}>
-            {item.preview}
-          </Text>
-          <View style={styles.chatMeta}>
-            <Text style={styles.chatTime}>{item.time}</Text>
-            <View style={styles.messageBadge}>
-              <Icon name="message-square" size={10} color="#64748B" />
-              <Text style={styles.messageCount}>{item.messageCount}</Text>
-            </View>
+        <View style={styles.chatMeta}>
+          <Text style={styles.chatTime}>{item.time}</Text>
+          <View style={styles.messageBadge}>
+            <Icon name="message-square" size={12} color="#94a3b8" />
+            <Text style={styles.messageCount}>{item.messageCount}</Text>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => deleteChat(item.id, item.groupId)}
-        >
-          <Icon name="trash-2" size={18} color="#EF4444" />
-        </TouchableOpacity>
       </LinearGradient>
     </TouchableOpacity>
   );
 
   return (
-    <LinearGradient
-      colors={['#0F172A', '#1E293B', '#0F172A']}
-      style={styles.container}
-    >
-      {/* Decorative Blobs */}
-      <View style={styles.blob1} />
-      <View style={styles.blob2} />
+    <>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>History</Text>
-          <Text style={styles.headerSubtitle}>
-            {chats.length} {chats.length === 1 ? 'chat' : 'chats'}
-          </Text>
+      <LinearGradient
+        colors={['#0f172a', '#0f172a', '#1e293b']}
+        style={[styles.container, { paddingTop: insets.top }]}
+      >
+        {/* Decorative blobs */}
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+        <View style={styles.blob3} />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 16, bottom: 16, left: 24, right: 24 }}
+          >
+            <Icon name="arrow-left" size={26} color="#e2e8f0" />
+          </TouchableOpacity>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>History</Text>
+            <Text style={styles.headerSubtitle}>
+              {chats.length}{' '}
+              {chats.length === 1 ? 'conversation' : 'conversations'}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.newChatButton}
+            activeOpacity={0.82}
+            onPress={startNewChat}
+          >
+            <LinearGradient
+              colors={['#8b5cf6', '#7c3aed']}
+              style={styles.newChatGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Icon name="plus" size={22} color="#ffffff" />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.newChatButton}
-          onPress={startNewChat}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
-            style={styles.newChatGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Icon name="plus" size={20} color="#fff" />
-            <Text style={styles.newChatText}>New</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+        <FlatList
+          data={chats}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconContainer}>
+                <LinearGradient
+                  colors={['rgba(139,92,246,0.20)', 'rgba(139,92,246,0.06)']}
+                  style={styles.emptyIconGradient}
+                >
+                  <Icon name="message-square" size={80} color="#8b5cf6" />
+                </LinearGradient>
+              </View>
 
-      {/* Chat List */}
-      <FlatList
-        data={chats}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrapper}>
-              <LinearGradient
-                colors={['rgba(139, 92, 246, 0.2)', 'rgba(139, 92, 246, 0.05)']}
-                style={styles.emptyIconGradient}
+              <Text style={styles.emptyTitle}>No chats yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Your conversations will appear here.{'\n'}
+                Start talking with ZenAI.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.emptyStartButton}
+                activeOpacity={0.85}
+                onPress={startNewChat}
               >
-                <Icon name="message-square" size={64} color="#8B5CF6" />
-              </LinearGradient>
+                <LinearGradient
+                  colors={['#8b5cf6', '#7c3aed']}
+                  style={styles.emptyButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Icon name="plus" size={20} color="#fff" />
+                  <Text style={styles.emptyButtonText}>New Conversation</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Start your first chat with ZenAI
-            </Text>
-
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={startNewChat}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={['#8B5CF6', '#7C3AED']}
-                style={styles.emptyButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Icon name="plus-circle" size={22} color="#fff" />
-                <Text style={styles.emptyButtonText}>Start Chatting</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        }
-      />
-    </LinearGradient>
+          }
+        />
+      </LinearGradient>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0f172a',
   },
 
-  // Decorative Blobs
   blob1: {
     position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(139, 92, 246, 0.08)',
-    top: -100,
-    right: -80,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    top: -160,
+    right: -140,
   },
   blob2: {
     position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(236, 72, 153, 0.08)',
-    bottom: 100,
-    left: -60,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(236, 72, 153, 0.04)',
+    bottom: 120,
+    left: -110,
+  },
+  blob3: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(59, 130, 246, 0.035)',
+    top: 320,
+    right: -90,
   },
 
-  // Header
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  headerContent: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -1,
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#f8fafc',
+    letterSpacing: -0.6,
   },
   headerSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
+    color: '#94a3b8',
     fontWeight: '600',
-    color: '#64748B',
-    letterSpacing: 0.3,
+    marginTop: 3,
   },
   newChatButton: {
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
+    elevation: 4,
+    shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 8,
-    elevation: 5,
   },
   newChatGradient: {
-    flexDirection: 'row',
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  newChatText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3,
   },
 
-  // List
   listContent: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 8,
   },
 
-  // Chat Card
   chatCard: {
-    marginBottom: 12,
+    marginBottom: 16,
     borderRadius: 20,
     overflow: 'hidden',
-  },
-  chatGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  chatCardGradient: {
+    padding: 16,
     borderRadius: 20,
   },
-  chatIconWrapper: {
-    marginRight: 14,
+  colorAccent: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.5,
   },
-  chatIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  chatMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chatIconWrapper: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginRight: 16,
+    borderWidth: 1.5,
+  },
+  purpleIcon: {
+    backgroundColor: 'rgba(139,92,246,0.28)',
+    borderColor: 'rgba(139,92,246,0.45)',
+  },
+  pinkIcon: {
+    backgroundColor: 'rgba(236,72,153,0.28)',
+    borderColor: 'rgba(236,72,153,0.45)',
+  },
+  blueIcon: {
+    backgroundColor: 'rgba(59,130,246,0.28)',
+    borderColor: 'rgba(59,130,246,0.45)',
   },
   chatContent: {
     flex: 1,
-    marginRight: 12,
   },
   chatTitle: {
     fontSize: 17,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 6,
-    letterSpacing: 0.2,
+    fontWeight: '700',
+    color: '#f1f5f9',
+    marginBottom: 5,
   },
   chatPreview: {
     fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 8,
-    lineHeight: 18,
+    color: '#cbd5e1',
+    lineHeight: 20,
+    opacity: 0.92,
   },
   chatMeta: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    marginTop: 12,
   },
   chatTime: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 12.5,
+    color: '#94a3b8',
     fontWeight: '600',
   },
   messageBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(100, 116, 139, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
+    backgroundColor: 'rgba(148,163,184,0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
   },
   messageCount: {
-    fontSize: 11,
-    color: '#64748B',
+    fontSize: 12,
+    color: '#94a3b8',
     fontWeight: '700',
   },
   deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
+    padding: 8,
+    marginLeft: 8,
   },
 
-  // Empty State
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
-    paddingHorizontal: 40,
+    paddingHorizontal: 36,
+    paddingTop: 60,
   },
-  emptyIconWrapper: {
-    marginBottom: 32,
-    borderRadius: 80,
-    overflow: 'hidden',
+  emptyIconContainer: {
+    marginBottom: 40,
   },
   emptyIconGradient: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   emptyTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#fff',
-    marginBottom: 12,
-    letterSpacing: -0.5,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#f8fafc',
+    marginBottom: 14,
+    letterSpacing: -0.4,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#64748B',
+    color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 48,
     fontWeight: '500',
   },
-  emptyButton: {
-    borderRadius: 16,
+  emptyStartButton: {
+    borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
-    elevation: 6,
   },
   emptyButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingHorizontal: 36,
+    paddingVertical: 18,
     gap: 12,
   },
   emptyButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    fontWeight: '700',
   },
 });
 

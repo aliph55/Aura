@@ -70,7 +70,13 @@ const App = () => {
                 }}
                 component={GoogleAuthScreen}
               />
-              <Stack.Screen name="History" component={History} />
+              <Stack.Screen
+                name="History"
+                options={{
+                  headerShown: false,
+                }}
+                component={History}
+              />
               <Stack.Screen name="Chat" component={Chat} />
               <Stack.Screen
                 name="About"

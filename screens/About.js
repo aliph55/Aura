@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,12 @@ const About = ({ navigation }) => {
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, []);
 
   const clearAllChat = async () => {
     Alert.alert(
@@ -47,7 +53,7 @@ const About = ({ navigation }) => {
     },
     {
       icon: 'info',
-      title: 'About ZenAI',
+      title: 'About Aura',
       subtitle: 'Learn more about us',
       color: '#8b5cf6',
       onPress: () => setAboutVisible(true),
@@ -75,6 +81,17 @@ const About = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.customHeader]}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Home')}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+          >
+            <MaterialIcons name="arrow-back" size={28} color="#e2e8f0" />
+          </TouchableOpacity>
+          <Text style={styles.headerNavigation}>About Aura</Text>
+          <View style={{ width: 28 }} />
+        </View>
+
         {/* Animated Background */}
         <View style={styles.bgGradient1} />
         <View style={styles.bgGradient2} />
@@ -92,7 +109,7 @@ const About = ({ navigation }) => {
             <View style={styles.logoContainer}>
               <MaterialIcons name="auto-awesome" size={40} color="#3b82f6" />
             </View>
-            <Text style={styles.headerTitle}>ZenAI</Text>
+            <Text style={styles.headerTitle}>Aura</Text>
             <Text style={styles.headerSubtitle}>Your Private AI Assistant</Text>
           </View>
 
@@ -131,7 +148,7 @@ const About = ({ navigation }) => {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>ZenAI v1.0.0</Text>
+            <Text style={styles.footerText}>Aura v1.0.0</Text>
             <Text style={styles.footerSubtext}>
               Made with ❤️ by Ayhan Group
             </Text>
@@ -164,7 +181,7 @@ const About = ({ navigation }) => {
                   🔒 100% On-Device AI
                 </Text>
                 <Text style={styles.modalText}>
-                  ZenAI works completely on your phone. Nothing is saved on any
+                  Aura works completely on your phone. Nothing is saved on any
                   server.
                 </Text>
               </View>
@@ -215,7 +232,7 @@ const About = ({ navigation }) => {
               <View style={styles.modalIconContainer}>
                 <MaterialIcons name="favorite" size={28} color="#ec4899" />
               </View>
-              <Text style={styles.modalTitle}>About ZenAI</Text>
+              <Text style={styles.modalTitle}>About Aura</Text>
               <TouchableOpacity
                 onPress={() => setAboutVisible(false)}
                 style={styles.modalClose}
@@ -231,8 +248,8 @@ const About = ({ navigation }) => {
                   🤖 Your Local AI Assistant
                 </Text>
                 <Text style={styles.modalText}>
-                  ZenAI is a privacy-first AI that runs 100% on your device
-                  after sign-in.
+                  Aura is a privacy-first AI that runs 100% on your device after
+                  sign-in.
                 </Text>
               </View>
 
@@ -284,7 +301,42 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
-
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    zIndex: 10,
+    paddingTop: 15,
+  },
+  headerNavigation: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f8fafc',
+    letterSpacing: -0.3,
+  },
+  introSection: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 48,
+    paddingHorizontal: 20,
+  },
+  introTitle: {
+    fontSize: 1,
+    fontWeight: '900',
+    color: '#f8fafc',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  introSubtitle: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
   // Animated Background
   bgGradient1: {
     position: 'absolute',
