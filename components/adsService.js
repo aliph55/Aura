@@ -252,8 +252,8 @@ export const showRewardedAd = () => {
       };
 
       try {
-        console.log('📺 Rewarded gösteriliyor...');
-        await rewarded.show();
+        // console.log('📺 Rewarded gösteriliyor...');
+        //  await rewarded.show();
       } catch (error) {
         console.error('❌ Rewarded gösterme hatası:', error);
         rewardCallback = null;

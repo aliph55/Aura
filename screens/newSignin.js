@@ -206,7 +206,7 @@ const NewSignin = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>ZenAi</Text>
+        <Text style={styles.title}>Aura</Text>
         <Text style={styles.subtitle}>Yapay Zeka Asistanınız</Text>
 
         {__DEV__ && (

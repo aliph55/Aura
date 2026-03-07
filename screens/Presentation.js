@@ -17,7 +17,7 @@ const slides = [
   {
     id: '1',
     icon: '🤖',
-    title: 'Welcome to ZenAI',
+    title: 'Welcome to Aura',
     description: 'Your personal AI assistant that works completely offline',
     color: '#6366f1',
   },

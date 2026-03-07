@@ -5,26 +5,14 @@ import { Alert } from 'react-native';
 import { showRewardedAd } from '../adsService';
 import { useModel } from '../../contexts/ModelContext';
 
-// Qwen2 chat format
 const SYSTEM_PROMPT = `You are a helpful multilingual assistant.`;
 
-const NUM_LAYERS = 24; // Qwen2-0.5B layer sayısı
-const NUM_KV_HEADS = 2; // Qwen2-0.5B KV head sayısı
-const HEAD_DIM = 64; // Head boyutu
+const NUM_LAYERS = 24;
+const NUM_KV_HEADS = 2;
+const HEAD_DIM = 64;
 const MAX_NEW_TOKENS = 500;
 const TIMER_SECONDS = 420;
 
-// Qwen2 chat template
-const buildPrompt = (userMessage, history = []) => {
-  let prompt = `<|im_start|>system\n${SYSTEM_PROMPT}<|im_end|>\n`;
-  for (const [userMsg, assistantMsg] of history) {
-    prompt += `<|im_start|>user\n${userMsg}<|im_end|>\n<|im_start|>assistant\n${assistantMsg}<|im_end|>\n`;
-  }
-  prompt += `<|im_start|>user\n${userMessage}<|im_end|>\n<|im_start|>assistant\n`;
-  return prompt;
-};
-
-// Boş past_key_values oluştur
 const createEmptyPastKV = () => {
   const pastKV = {};
   for (let i = 0; i < NUM_LAYERS; i++) {
@@ -46,7 +34,6 @@ export const useChatLogic = ({ route, navigation }) => {
   const { groupId, chatId } = route.params || {};
   const { sessionRef, tokenizerRef, modelLoaded } = useModel();
 
-  // State
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -60,25 +47,16 @@ export const useChatLogic = ({ route, navigation }) => {
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
 
-  // Refs
   const scrollViewRef = useRef(null);
   const saveTimeoutRef = useRef(null);
-  const historyRef = useRef([]); // Son 5 konuşmayı tutar
+  const historyRef = useRef([]);
 
   // ─── Tokenizer ───────────────────────────────────────────────────────────────
-
-  const tokenize = useCallback(
-    text => {
-      if (!tokenizerRef?.current) throw new Error('Tokenizer not loaded');
-      return tokenizerRef.current.encode(text); // ← .encode() kullan
-    },
-    [tokenizerRef],
-  );
 
   const decode = useCallback(
     tokenIds => {
       if (!tokenizerRef?.current) return '';
-      return tokenizerRef.current.decode(tokenIds); // ← sadece decode()
+      return tokenizerRef.current.decode(tokenIds);
     },
     [tokenizerRef],
   );
@@ -88,7 +66,6 @@ export const useChatLogic = ({ route, navigation }) => {
   const sampleToken = (logits, temperature = 0.7, topP = 0.9) => {
     const scaled = logits.map(l => l / temperature);
 
-    // Math.max(...) yerine döngü kullan
     let maxVal = scaled[0];
     for (let i = 1; i < scaled.length; i++) {
       if (scaled[i] > maxVal) maxVal = scaled[i];
@@ -99,7 +76,6 @@ export const useChatLogic = ({ route, navigation }) => {
     for (let i = 0; i < expVals.length; i++) sum += expVals[i];
     const probs = expVals.map(e => e / sum);
 
-    // Top-p sampling
     const sorted = probs.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
 
     let cumSum = 0;
@@ -132,7 +108,6 @@ export const useChatLogic = ({ route, navigation }) => {
       );
 
       const seqLen = inputIds.length;
-
       console.log('📝 Prompt length:', seqLen, 'tokens');
 
       let currentInputIds = new BigInt64Array(inputIds.map(BigInt));
@@ -168,23 +143,19 @@ export const useChatLogic = ({ route, navigation }) => {
 
           const results = await sessionRef.current.run(feeds);
 
-          // İlk adımda output key'lerini logla
           if (step === 0) {
             console.log('📤 Output keys:', Object.keys(results));
             console.log('📊 Logits dims:', results.logits?.dims);
           }
 
-          // Logits al
           const logits = results.logits.data;
           const vocabSize = results.logits.dims[2];
           const lastLogits = Array.from(
             logits.slice(logits.length - vocabSize),
           );
 
-          // Token seç
           const nextTokenId = sampleToken(lastLogits);
 
-          // EOS kontrolü - push'tan ÖNCE
           if (
             nextTokenId === 151645 ||
             nextTokenId === 151643 ||
@@ -194,10 +165,7 @@ export const useChatLogic = ({ route, navigation }) => {
             break;
           }
 
-          // Token ekle - SADECE BİR KEZ
           generatedIds.push(nextTokenId);
-
-          // Decode et
           fullText = decode(generatedIds);
           setStreamingText(fullText);
 
@@ -209,13 +177,11 @@ export const useChatLogic = ({ route, navigation }) => {
             );
           }
 
-          // Sonraki adım için güncelle
           currentInputIds = new BigInt64Array([BigInt(nextTokenId)]);
           pastLen += step === 0 ? seqLen : 1;
           attentionMask = new BigInt64Array(pastLen + 1).fill(1n);
           positionIds = new BigInt64Array([BigInt(pastLen)]);
 
-          // Past key values güncelle
           const newPastKV = {};
           for (let i = 0; i < NUM_LAYERS; i++) {
             newPastKV[`past_key_values.${i}.key`] = results[`present.${i}.key`];
@@ -224,7 +190,6 @@ export const useChatLogic = ({ route, navigation }) => {
           }
           pastKV = newPastKV;
 
-          // UI güncellemesi
           await new Promise(r => setTimeout(r, 10));
         }
       } finally {
@@ -234,7 +199,7 @@ export const useChatLogic = ({ route, navigation }) => {
       console.log('✅ Final response:', fullText);
       return fullText || 'No response generated.';
     },
-    [sessionRef, tokenizerRef],
+    [sessionRef, tokenizerRef, decode],
   );
 
   // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -283,7 +248,7 @@ export const useChatLogic = ({ route, navigation }) => {
           setCurrentGroupName(group.name);
           setCurrentChatId(chatId);
           setMessages(chat.messages || []);
-          setTitle(chat.title || 'Chat');
+          setTitle(chat.title || '');
           historyRef.current = (chat.messages || [])
             .reduce((acc, m, i, arr) => {
               if (m.sender === 'user' && arr[i + 1]?.sender === 'ai') {
@@ -311,6 +276,13 @@ export const useChatLogic = ({ route, navigation }) => {
     const userText = inputText.trim();
     setInputText('');
 
+    // Başlık yoksa VE sohbet henüz hiç mesaj içermiyorsa ilk 7 karakteri başlık yap
+    let newTitle = title;
+    if (!title && messages.length === 0) {
+      newTitle = userText.slice(0, 7);
+      setTitle(newTitle);
+    }
+
     const userMessage = {
       id: `${Date.now()}-user`,
       text: userText,
@@ -320,7 +292,6 @@ export const useChatLogic = ({ route, navigation }) => {
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    if (!title) setTitle(userText.slice(0, 50));
 
     try {
       const response = await generateResponse(userText);
@@ -336,12 +307,10 @@ export const useChatLogic = ({ route, navigation }) => {
       setMessages(finalMessages);
       setStreamingText('');
 
-      // Geçmişi güncelle (max 5)
       historyRef.current = [...historyRef.current, [userText, response]].slice(
         -5,
       );
 
-      // Kaydet
       const updatedGroups = groups.map(g =>
         g.id === currentGroupId
           ? {
@@ -350,6 +319,7 @@ export const useChatLogic = ({ route, navigation }) => {
                 c.id === currentChatId
                   ? {
                       ...c,
+                      title: newTitle, // ← burada güncel başlık
                       messages: finalMessages,
                       lastOpened: new Date().toISOString(),
                     }
@@ -373,14 +343,16 @@ export const useChatLogic = ({ route, navigation }) => {
     groups,
     currentGroupId,
     currentChatId,
+    title,
     generateResponse,
+    debouncedSave,
   ]);
 
   const startNewChat = useCallback(() => {
     const newChatId = Date.now().toString();
     const newChat = {
       id: newChatId,
-      title: 'Chat',
+      title: '',
       messages: [],
       startDate: new Date().toISOString(),
       lastOpened: new Date().toISOString(),
@@ -391,11 +363,11 @@ export const useChatLogic = ({ route, navigation }) => {
     setGroups(updatedGroups);
     setCurrentChatId(newChatId);
     setMessages([]);
-    setTitle('');
+    setTitle(''); // ← yeni sohbet → başlık sıfırlanır
     historyRef.current = [];
     saveGroups(updatedGroups);
     navigation.setParams({ groupId: currentGroupId, chatId: newChatId });
-  }, [groups, currentGroupId, navigation]);
+  }, [groups, currentGroupId, navigation, saveGroups]);
 
   const startNewGroup = useCallback(() => {
     const newGroupId = Date.now().toString();
@@ -406,7 +378,7 @@ export const useChatLogic = ({ route, navigation }) => {
       chats: [
         {
           id: newChatId,
-          title: 'Chat',
+          title: '',
           messages: [],
           startDate: new Date().toISOString(),
           lastOpened: new Date().toISOString(),
@@ -423,7 +395,7 @@ export const useChatLogic = ({ route, navigation }) => {
     historyRef.current = [];
     saveGroups(updatedGroups);
     navigation.setParams({ groupId: newGroupId, chatId: newChatId });
-  }, [groups, navigation]);
+  }, [groups, navigation, saveGroups]);
 
   const updateGroupName = useCallback(() => {
     if (!newGroupName.trim()) return;
@@ -435,7 +407,7 @@ export const useChatLogic = ({ route, navigation }) => {
     setNewGroupName('');
     setGroupNameModalVisible(false);
     saveGroups(updatedGroups);
-  }, [groups, currentGroupId, newGroupName]);
+  }, [groups, currentGroupId, newGroupName, saveGroups]);
 
   // ─── Timer ────────────────────────────────────────────────────────────────────
 

@@ -20,6 +20,14 @@ const Home = ({ navigation }) => {
   const userInfo = useSelector(state => state.userInfo.user);
   const userName = userInfo?.givenName || 'there';
 
+  const gets = async () => {
+    AsyncStorage.getItem('groups');
+  };
+
+  useEffect(() => {
+    console.log(gets);
+  }, []);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -148,7 +156,7 @@ const Home = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.logo}>ZenAI</Text>
+            <Text style={styles.logo}>Aura</Text>
             <View style={styles.logoDot} />
           </View>
           {/**

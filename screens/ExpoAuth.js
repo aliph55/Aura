@@ -139,7 +139,7 @@ const ExpoAuth = () => {
         setUserInfo({
           id: userCredential.user.uid,
           name: 'Misafir',
-          email: 'misafir@zenai.app',
+          email: 'misafir@aura.app',
           givenName: 'Misafir',
           familyName: '',
           photo: '',
@@ -232,7 +232,7 @@ const ExpoAuth = () => {
         <Text
           style={[styles.title, { color: __DEV__ ? '#FFD700' : '#4285F4' }]}
         >
-          ZenAi
+          Aura
         </Text>
         <Text style={styles.subtitle}>Yapay Zeka Asistanınız</Text>
       </View>

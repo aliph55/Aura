@@ -37,7 +37,7 @@ const Profile = ({ navigation }) => {
     },
     {
       icon: 'info',
-      title: 'About ZenAI',
+      title: 'About Aura',
       subtitle: 'Learn more about us',
       gradient: ['#EC4899', '#DB2777'],
       onPress: () => setAboutVisible(true),
@@ -90,7 +90,7 @@ const Profile = ({ navigation }) => {
 
             <View style={styles.onlineBadge} />
 
-            <Text style={styles.name}>{userInfo?.name || 'ZenAI User'}</Text>
+            <Text style={styles.name}>{userInfo?.name || 'Aura User'}</Text>
             <Text style={styles.email}>{userInfo?.email}</Text>
 
             {/* Stats Row */}
@@ -148,7 +148,7 @@ const Profile = ({ navigation }) => {
             <Text style={styles.logoutText}>Sign Out</Text>
           </TouchableOpacity>
 
-          <Text style={styles.version}>ZenAI v1.0 • Made with ❤️</Text>
+          <Text style={styles.version}>Aura v1.0 • Made with ❤️</Text>
         </ScrollView>
       </LinearGradient>
 
@@ -167,7 +167,7 @@ const Profile = ({ navigation }) => {
             <ScrollView style={styles.modalBody}>
               <Text style={styles.modalText}>
                 <Text style={styles.modalBold}>100% On-Device AI{'\n\n'}</Text>
-                ZenAI works completely on your phone. Nothing is saved on any
+                Aura works completely on your phone. Nothing is saved on any
                 server.
                 {'\n\n'}
                 <Text style={styles.modalBold}>What We Store:{'\n'}</Text>• Your
@@ -203,7 +203,7 @@ const Profile = ({ navigation }) => {
               style={styles.modalHeader}
             >
               <MaterialIcons name="favorite" size={32} color="#fff" />
-              <Text style={styles.modalHeaderText}>About ZenAI</Text>
+              <Text style={styles.modalHeaderText}>About Aura</Text>
             </LinearGradient>
 
             <ScrollView style={styles.modalBody}>
@@ -211,7 +211,7 @@ const Profile = ({ navigation }) => {
                 <Text style={styles.modalBold}>
                   Your Local AI Assistant{'\n\n'}
                 </Text>
-                ZenAI is a privacy-first AI that runs 100% on your device after
+                Aura is a privacy-first AI that runs 100% on your device after
                 sign-in.
                 {'\n\n'}
                 <Text style={styles.modalBold}>Features:{'\n'}</Text>✨ Smart

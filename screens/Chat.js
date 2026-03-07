@@ -39,7 +39,6 @@ const Chat = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
 
   const { isLoading } = useModel();
-
   React.useLayoutEffect(() => {
     const timeString = formatTime();
     const remainingSeconds = timeString
@@ -50,6 +49,16 @@ const Chat = ({ route, navigation }) => {
       );
     const showAdWarning = remainingSeconds > 0 && remainingSeconds <= 30;
 
+    // Compute what to show – fallback chain
+    let displayTitle = title;
+    if (!displayTitle) {
+      if (messages.length > 0) {
+        displayTitle = messages[0].text.slice(0, 7);
+      } else {
+        displayTitle = 'Yeni Sohbet'; // veya 'New Chat' – sen karar ver
+      }
+    }
+
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.navigationHeaderTitle}>
@@ -59,8 +68,11 @@ const Chat = ({ route, navigation }) => {
           >
             <MaterialIcons name="arrow-back" size={28} color="#e2e8f0" />
           </TouchableOpacity>
-          <Text style={styles.navigationTitle}>{title || 'Chat'}</Text>
+
+          <Text style={styles.navigationTitle}>{displayTitle}</Text>
+
           <Text style={styles.navigationTime}>{timeString}</Text>
+
           {showAdWarning && (
             <View style={styles.navigationAdWarning}>
               <Text style={styles.navigationAdWarningText}>
@@ -70,6 +82,8 @@ const Chat = ({ route, navigation }) => {
           )}
         </View>
       ),
+
+      // ... headerRight, headerLeft vs. aynı kalabilir
       headerRight: () => (
         <View style={styles.navigationHeaderRight}>
           {modelLoaded ? (
@@ -96,11 +110,19 @@ const Chat = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       ),
-      headerLeft: () => null, // default back'i temizle
-      headerBackVisible: true, // zorla göster (bazen işe yarıyor)
+      headerLeft: () => null,
+      headerBackVisible: true,
       headerBackTitleVisible: false,
     });
-  }, [navigation, title, formatTime, modelLoaded, isLoading, startNewGroup]);
+  }, [
+    navigation,
+    title, // ← önemli: title değiştiğinde header güncellenir
+    messages, // ← önemli: mesaj gelince fallback çalışsın
+    formatTime,
+    modelLoaded,
+    isLoading,
+    startNewGroup,
+  ]);
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>

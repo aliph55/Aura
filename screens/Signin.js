@@ -277,7 +277,7 @@ const Signin = () => {
           >
             <Text style={styles.logoText}>Z</Text>
           </LinearGradient>
-          <Text style={styles.title}>ZenAI</Text>
+          <Text style={styles.title}>Aura</Text>
           <Text style={styles.subtitle}>Akıllı AI asistanınız</Text>
         </View>
 

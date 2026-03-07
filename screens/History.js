@@ -34,6 +34,7 @@ const History = ({ navigation }) => {
                 ? chat.messages[chat.messages.length - 1]
                 : null;
 
+            // Önizleme metni (mevcut mantık aynı kalabilir)
             let preview = 'No messages yet';
             if (lastMessage) {
               if (lastMessage.sender === 'ai') {
@@ -47,9 +48,28 @@ const History = ({ navigation }) => {
               }
             }
 
+            // ────────────────────── BAŞLIK MANTIĞI ──────────────────────
+            let displayTitle = chat.title;
+
+            if (!displayTitle) {
+              if (chat.messages && chat.messages.length > 0) {
+                const firstMsg = chat.messages[0];
+                // İlk mesaj kullanıcıdan geliyorsa (genelde öyle olur)
+                if (firstMsg.sender === 'user') {
+                  displayTitle = firstMsg.text.slice(0, 7);
+                } else {
+                  // Nadiren AI ilk mesajı atarsa
+                  displayTitle = firstMsg.text.slice(0, 7);
+                }
+              } else {
+                displayTitle = 'New Chat'; // veya 'Yeni Sohbet'
+              }
+            }
+            // ───────────────────────────────────────────────────────────
+
             return {
               id: chat.id,
-              title: chat.title || 'New Chat',
+              title: displayTitle, // ← artık hesaplanmış hali
               preview: preview,
               time: formatDate(chat.lastOpened),
               lastOpened: chat.lastOpened,
@@ -304,7 +324,7 @@ const History = ({ navigation }) => {
               <Text style={styles.emptyTitle}>No chats yet</Text>
               <Text style={styles.emptySubtitle}>
                 Your conversations will appear here.{'\n'}
-                Start talking with ZenAI.
+                Start talking with Aura.
               </Text>
 
               <TouchableOpacity
