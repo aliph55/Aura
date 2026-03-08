@@ -276,10 +276,11 @@ export const useChatLogic = ({ route, navigation }) => {
     const userText = inputText.trim();
     setInputText('');
 
-    // Başlık yoksa VE sohbet henüz hiç mesaj içermiyorsa ilk 7 karakteri başlık yap
+    // Yeni chat'te başlık yoksa ilk mesajın ilk 7 karakterini başlık yap
     let newTitle = title;
     if (!title && messages.length === 0) {
-      newTitle = userText.slice(0, 7);
+      newTitle = userText.slice(0, 7); // İlk 7 karakter
+      console.log('📝 Yeni başlık:', newTitle); // Debug için
       setTitle(newTitle);
     }
 

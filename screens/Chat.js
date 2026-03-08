@@ -51,12 +51,10 @@ const Chat = ({ route, navigation }) => {
 
     // Compute what to show – fallback chain
     let displayTitle = title;
-    if (!displayTitle) {
-      if (messages.length > 0) {
-        displayTitle = messages[0].text.slice(0, 7);
-      } else {
-        displayTitle = 'Yeni Sohbet'; // veya 'New Chat' – sen karar ver
-      }
+    if (!displayTitle && messages.length > 0) {
+      displayTitle = messages[0].text.slice(0, 7); // İlk mesajın ilk 7 karakteri
+    } else if (!displayTitle) {
+      displayTitle = 'New Chat';
     }
 
     navigation.setOptions({

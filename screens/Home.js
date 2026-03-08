@@ -20,14 +20,6 @@ const Home = ({ navigation }) => {
   const userInfo = useSelector(state => state.userInfo.user);
   const userName = userInfo?.givenName || 'there';
 
-  const gets = async () => {
-    AsyncStorage.getItem('groups');
-  };
-
-  useEffect(() => {
-    console.log(gets);
-  }, []);
-
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -116,7 +108,7 @@ const Home = ({ navigation }) => {
       const newChatId = Date.now().toString();
       const newChat = {
         id: newChatId,
-        title: 'New Chat',
+        title: '', // ← "New Chat" yerine BOŞ BIRAKIN
         startDate: new Date().toISOString(),
         lastOpened: new Date().toISOString(),
         messages: [],
