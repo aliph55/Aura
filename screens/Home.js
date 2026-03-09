@@ -24,15 +24,13 @@ const Home = ({ navigation }) => {
   const [recentChats, setRecentChats] = useState([]);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
-  const userInfo = useSelector(state => state.userInfo.user);
-  const userName = userInfo?.givenName || 'there';
-
-  const dispatch = useDispatch();
+  const [userInfoName, setUserInfoName] = useState();
 
   const getCurrentUserInfo = async () => {
     try {
       const userInfo = await GoogleSignin.signInSilently();
       console.log('getCurrentUserInfo ', userInfo?.data?.user);
+      setUserInfoName(userInfo?.data?.user);
       dispatch(setUserInfo(userInfo?.data));
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_REQUIRED) {
@@ -51,7 +49,7 @@ const Home = ({ navigation }) => {
     // getCurrentUser();
   }, []);
   useEffect(() => {
-    console.log(userInfo);
+    console.log(userInfoName);
   }, []);
 
   useEffect(() => {
@@ -221,7 +219,9 @@ const Home = ({ navigation }) => {
             <View style={styles.heroGlow} />
             <View style={styles.heroContent}>
               <View style={styles.greetingContainer}>
-                <Text style={styles.greeting}>Hey {userName}</Text>
+                <Text style={styles.greeting}>
+                  Hey {userInfoName?.givenName || 'There'}
+                </Text>
                 <Text style={styles.waveEmoji}>👋</Text>
               </View>
               <Text style={styles.subtitle}>
