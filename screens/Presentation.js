@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSelector } from 'react-redux';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +54,7 @@ const Presentation = ({ navigation }) => {
 
   const flatListRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const userInfo = useSelector(state => state.userInfo);
 
   useEffect(() => {
     checkIfSeen();
@@ -65,7 +67,7 @@ const Presentation = ({ navigation }) => {
       if (hasSeen === 'true') {
         // Daha önce görmüş, direkt Download'a git
         console.log('✅ User has seen presentation, going to Download');
-        navigation.replace('Download');
+        navigation.replace(userInfo.data ? 'Download' : 'Signin');
       } else {
         // İlk kez, slides'ı göster
         console.log('🆕 First time user, showing presentation');
@@ -98,7 +100,7 @@ const Presentation = ({ navigation }) => {
       await AsyncStorage.setItem('hasSeenPresentation', 'true');
       // Download sayfasına git
       console.log('🚀 Navigating to Download');
-      navigation.replace('Download');
+      navigation.replace(userInfo.data ? 'Download' : 'Signin');
     } catch (error) {
       console.error('❌ Save error:', error);
     }

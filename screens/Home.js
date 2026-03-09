@@ -8,6 +8,13 @@ import {
   View,
   Animated,
 } from 'react-native';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+import { setUserInfo } from '../redux/userInfo';
+import { useDispatch } from 'react-redux';
+
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +26,33 @@ const Home = ({ navigation }) => {
   const [slideAnim] = useState(new Animated.Value(50));
   const userInfo = useSelector(state => state.userInfo.user);
   const userName = userInfo?.givenName || 'there';
+
+  const dispatch = useDispatch();
+
+  const getCurrentUserInfo = async () => {
+    try {
+      const userInfo = await GoogleSignin.signInSilently();
+      console.log('getCurrentUserInfo ', userInfo?.data?.user);
+      dispatch(setUserInfo(userInfo?.data));
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
+        // user has not signed in yet
+      } else {
+        // some other error
+      }
+    }
+  };
+
+  useEffect(() => {
+    getCurrentUserInfo();
+  }, []);
+
+  useEffect(() => {
+    // getCurrentUser();
+  }, []);
+  useEffect(() => {
+    console.log(userInfo);
+  }, []);
 
   useEffect(() => {
     Animated.parallel([

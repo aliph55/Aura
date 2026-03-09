@@ -1,25 +1,48 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Button, Text, StyleSheet } from 'react-native';
 import {
   GoogleSignin,
   GoogleSigninButton,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
-
-// Uygulamanın başında bir kez çalıştır (örn. App.tsx içinde)
-GoogleSignin.configure({
-  webClientId:
-    '799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com', // Web Application tipindeki client ID
-});
+import { useDispatch } from 'react-redux';
+import { setUserInfo } from '../redux/userInfo';
 
 const GoogleAuthScreen = ({ navigation }) => {
-  const [userInfo, setUserInfo] = React.useState(null);
+  const [userInfo, setUser] = React.useState(null);
+  const dispatch = useDispatch();
+  // ✅ useEffect içine taşındı
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId:
+        '799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com',
+    });
+  }, []);
+
+  const getCurrentUserInfo = async () => {
+    try {
+      const userInfo = await GoogleSignin.signInSilently();
+      console.log('getCurrentUserInfo ', userInfo?.data?.user);
+      dispatch(setUserInfo(userInfo?.data));
+      navigation.navigate('Download');
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
+        // user has not signed in yet
+      } else {
+        // some other error
+      }
+    }
+  };
+
+  useEffect(() => {
+    getCurrentUserInfo();
+  }, []);
 
   const signIn = async () => {
     try {
       await GoogleSignin.hasPlayServices();
       const user = await GoogleSignin.signIn();
-      setUserInfo(user.data);
+      setUser(user.data);
       console.log('Kullanıcı:', user);
       navigation.navigate('Download');
     } catch (error) {
