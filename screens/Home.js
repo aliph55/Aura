@@ -31,7 +31,7 @@ const Home = ({ navigation }) => {
       const userInfo = await GoogleSignin.signInSilently();
       console.log('getCurrentUserInfo ', userInfo?.data?.user);
       setUserInfoName(userInfo?.data?.user);
-      dispatch(setUserInfo(userInfo?.data));
+      // dispatch(setUserInfo(userInfo?.data));
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_REQUIRED) {
         // user has not signed in yet

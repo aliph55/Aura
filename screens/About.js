@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,46 @@ import {
   StatusBar,
   Modal,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useDispatch, useSelector } from 'react-redux';
+import { setUserInfo } from '../redux/userInfo';
 
 const About = ({ navigation }) => {
+  const [userInfoName, setUserInfoName] = useState();
+
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
   const insets = useSafeAreaInsets();
+  const dispatch = useDispatch();
+
+  // Redux'tan kullanıcı bilgisini al
+  const userInfo = useSelector(state => state.userInfo.user);
+
+  console.log(userInfo.user);
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
   }, []);
+
+  const handleSignOut = async () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await GoogleSignin.signOut();
+          dispatch(setUserInfo(null));
+          navigation.replace('GoogleAuth'); // veya kendi auth ekranın
+        },
+      },
+    ]);
+  };
 
   const clearAllChat = async () => {
     Alert.alert(
@@ -43,6 +67,24 @@ const About = ({ navigation }) => {
     );
   };
 
+  const getCurrentUserInfo = async () => {
+    try {
+      const userInfo = await GoogleSignin.signInSilently();
+      //  console.log('getCurrentUserInfo ', userInfo?.data?.user);
+      setUserInfoName(userInfo?.data?.user);
+      // dispatch(setUserInfo(userInfo?.data));
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
+        // user has not signed in yet
+      } else {
+        // some other error
+      }
+    }
+  };
+
+  useEffect(() => {
+    getCurrentUserInfo();
+  }, []);
   const menu = [
     {
       icon: 'shield',
@@ -81,7 +123,7 @@ const About = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-        <View style={[styles.customHeader]}>
+        <View style={styles.customHeader}>
           <TouchableOpacity
             onPress={() => navigation.navigate('Home')}
             hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
@@ -101,7 +143,7 @@ const About = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: insets.bottom + 40 }, // ekstra rahatlık için +40
+            { paddingBottom: insets.bottom + 40 },
           ]}
         >
           {/* Header */}
@@ -111,6 +153,36 @@ const About = ({ navigation }) => {
             </View>
             <Text style={styles.headerTitle}>Aura</Text>
             <Text style={styles.headerSubtitle}>Your Private AI Assistant</Text>
+
+            {/* ✅ Kullanıcı Bilgisi */}
+            {userInfo?.user && (
+              <View style={styles.userCard}>
+                {userInfo?.user?.photo ? (
+                  <Image
+                    source={{ uri: userInfo?.user?.photo }}
+                    style={styles.userAvatar}
+                  />
+                ) : (
+                  <View style={styles.userAvatarPlaceholder}>
+                    <MaterialIcons name="person" size={28} color="#94a3b8" />
+                  </View>
+                )}
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{userInfo?.user?.name}</Text>
+                  <Text style={styles.userEmail}>{userInfo?.user?.email}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* ✅ Sign Out Butonu */}
+            <TouchableOpacity
+              style={styles.signOutButton}
+              activeOpacity={0.8}
+              onPress={handleSignOut}
+            >
+              <MaterialIcons name="logout" size={18} color="#ef4444" />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Menu Section */}
@@ -135,12 +207,10 @@ const About = ({ navigation }) => {
                     color={item.color}
                   />
                 </View>
-
                 <View style={styles.menuContent}>
                   <Text style={styles.menuTitle}>{item.title}</Text>
                   <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
                 </View>
-
                 <MaterialIcons name="chevron-right" size={22} color="#64748b" />
               </TouchableOpacity>
             ))}
@@ -160,7 +230,6 @@ const About = ({ navigation }) => {
       <Modal visible={privacyVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalIconContainer}>
                 <MaterialIcons name="shield" size={28} color="#3b82f6" />
@@ -173,8 +242,6 @@ const About = ({ navigation }) => {
                 <MaterialIcons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
-
-            {/* Modal Body */}
             <ScrollView style={styles.modalBody}>
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>
@@ -185,7 +252,6 @@ const About = ({ navigation }) => {
                   server.
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>✅ What We Store</Text>
                 <Text style={styles.modalText}>
@@ -193,7 +259,6 @@ const About = ({ navigation }) => {
                   • Photos (locally)
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>
                   ❌ What We Don't Store
@@ -203,7 +268,6 @@ const About = ({ navigation }) => {
                   • No ads
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>🔐 Google Sign-In</Text>
                 <Text style={styles.modalText}>
@@ -211,7 +275,6 @@ const About = ({ navigation }) => {
                   anything else.
                 </Text>
               </View>
-
               <View style={styles.modalFooterNote}>
                 <MaterialIcons name="lock" size={16} color="#10b981" />
                 <Text style={styles.modalFooterText}>
@@ -227,7 +290,6 @@ const About = ({ navigation }) => {
       <Modal visible={aboutVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalIconContainer}>
                 <MaterialIcons name="favorite" size={28} color="#ec4899" />
@@ -240,8 +302,6 @@ const About = ({ navigation }) => {
                 <MaterialIcons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
-
-            {/* Modal Body */}
             <ScrollView style={styles.modalBody}>
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>
@@ -252,7 +312,6 @@ const About = ({ navigation }) => {
                   sign-in.
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>✨ Features</Text>
                 <Text style={styles.modalText}>
@@ -260,7 +319,6 @@ const About = ({ navigation }) => {
                   responses{'\n'}• Works offline
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>🛡️ No Compromises</Text>
                 <Text style={styles.modalText}>
@@ -268,13 +326,11 @@ const About = ({ navigation }) => {
                   training on your chats
                 </Text>
               </View>
-
               <View style={styles.modalSection}>
                 <Text style={styles.modalText}>
                   Built for people who want real AI without sacrificing privacy.
                 </Text>
               </View>
-
               <View style={styles.modalFooterNote}>
                 <MaterialIcons name="mail" size={16} color="#3b82f6" />
                 <Text style={styles.modalFooterText}>
@@ -290,17 +346,8 @@ const About = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: '#0f172a' },
+  scrollContent: { paddingBottom: 40 },
   customHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -319,25 +366,6 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     letterSpacing: -0.3,
   },
-  introSection: {
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 48,
-    paddingHorizontal: 20,
-  },
-  introTitle: {
-    fontSize: 1,
-    fontWeight: '900',
-    color: '#f8fafc',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  introSubtitle: {
-    fontSize: 16,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  // Animated Background
   bgGradient1: {
     position: 'absolute',
     width: 300,
@@ -365,11 +393,9 @@ const styles = StyleSheet.create({
     top: 300,
     right: -50,
   },
-
-  // Header
   header: {
     alignItems: 'center',
-    marginTop: 20, // ✅ 60'tan 20'ye düşürdüm
+    marginTop: 20,
     marginBottom: 40,
     paddingHorizontal: 20,
   },
@@ -392,20 +418,77 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '900',
     color: '#f8fafc',
-    marginBottom: 8,
+    marginBottom: 4,
     letterSpacing: -1,
   },
   headerSubtitle: {
     fontSize: 15,
     color: '#64748b',
     fontWeight: '600',
+    marginBottom: 20,
   },
 
-  // Menu Section
-  menuSection: {
-    marginHorizontal: 20,
-    marginBottom: 32,
+  // ✅ Kullanıcı Kartı
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 14,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 12,
   },
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  userAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#0f172a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userInfo: { flex: 1 },
+  userName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#f8fafc',
+    marginBottom: 2,
+  },
+  userEmail: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+
+  // ✅ Sign Out Butonu
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#ef444430',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  signOutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+
+  menuSection: { marginHorizontal: 20, marginBottom: 32 },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -433,38 +516,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 14,
   },
-  menuContent: {
-    flex: 1,
-  },
+  menuContent: { flex: 1 },
   menuTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#f8fafc',
     marginBottom: 3,
   },
-  menuSubtitle: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '500',
-  },
+  menuSubtitle: { fontSize: 13, color: '#64748b', fontWeight: '500' },
 
-  // Footer
-  footer: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  footerText: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  footerSubtext: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '500',
-  },
+  footer: { alignItems: 'center', gap: 4 },
+  footerText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  footerSubtext: { fontSize: 12, color: '#475569', fontWeight: '500' },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -494,12 +558,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  modalTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#f8fafc',
-  },
+  modalTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#f8fafc' },
   modalClose: {
     width: 36,
     height: 36,
@@ -508,12 +567,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalBody: {
-    padding: 20,
-  },
-  modalSection: {
-    marginBottom: 24,
-  },
+  modalBody: { padding: 20 },
+  modalSection: { marginBottom: 24 },
   modalSectionTitle: {
     fontSize: 17,
     fontWeight: '800',
@@ -537,11 +592,7 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
     marginTop: 12,
   },
-  modalFooterText: {
-    fontSize: 13,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
+  modalFooterText: { fontSize: 13, color: '#94a3b8', fontWeight: '600' },
 });
 
 export default About;
