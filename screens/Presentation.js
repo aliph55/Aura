@@ -54,9 +54,10 @@ const Presentation = ({ navigation }) => {
 
   const flatListRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
-  const userInfo = useSelector(state => state.userInfo);
+  const userInfo = useSelector(state => state.userInfo.user);
 
   useEffect(() => {
+    console.log('userInfo ', userInfo);
     checkIfSeen();
   }, []);
 
@@ -67,7 +68,7 @@ const Presentation = ({ navigation }) => {
       if (hasSeen === 'true') {
         // Daha önce görmüş, direkt Download'a git
         console.log('✅ User has seen presentation, going to Download');
-        navigation.replace(userInfo.data ? 'Download' : 'Signin');
+        navigation.replace(userInfo === null ? 'Signin' : 'Download'); // ✅ doğru
       } else {
         // İlk kez, slides'ı göster
         console.log('🆕 First time user, showing presentation');
@@ -100,7 +101,7 @@ const Presentation = ({ navigation }) => {
       await AsyncStorage.setItem('hasSeenPresentation', 'true');
       // Download sayfasına git
       console.log('🚀 Navigating to Download');
-      navigation.replace(userInfo.data ? 'Download' : 'Signin');
+      navigation.replace(userInfo ? 'Download' : 'Signin');
     } catch (error) {
       console.error('❌ Save error:', error);
     }

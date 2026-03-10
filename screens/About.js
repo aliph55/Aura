@@ -13,7 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUserInfo } from '../redux/userInfo';
 
@@ -28,14 +31,12 @@ const About = ({ navigation }) => {
   // Redux'tan kullanıcı bilgisini al
   const userInfo = useSelector(state => state.userInfo.user);
 
-  console.log(userInfo.user);
-
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, []);
 
   const handleSignOut = async () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    Alert.alert('Sign Out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out',
@@ -43,7 +44,7 @@ const About = ({ navigation }) => {
         onPress: async () => {
           await GoogleSignin.signOut();
           dispatch(setUserInfo(null));
-          navigation.replace('GoogleAuth'); // veya kendi auth ekranın
+          navigation.replace('Signin'); // ✅ Signin = GoogleAuthScreen
         },
       },
     ]);
@@ -69,15 +70,17 @@ const About = ({ navigation }) => {
 
   const getCurrentUserInfo = async () => {
     try {
-      const userInfo = await GoogleSignin.signInSilently();
-      //  console.log('getCurrentUserInfo ', userInfo?.data?.user);
-      setUserInfoName(userInfo?.data?.user);
-      // dispatch(setUserInfo(userInfo?.data));
+      const isSignedIn = await GoogleSignin.isSignedIn(); // ✅ önce kontrol et
+      if (!isSignedIn) return; // giriş yoksa hiç deneme
+
+      const info = await GoogleSignin.signInSilently();
+      dispatch(setUserInfo(info?.data));
+      navigation.replace('Download');
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_REQUIRED) {
-        // user has not signed in yet
+        // normal
       } else {
-        // some other error
+        console.log('Silent sign-in error:', error);
       }
     }
   };
