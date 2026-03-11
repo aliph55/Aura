@@ -10,11 +10,29 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "@react-native-google-signin/google-signin": "^16.1.1",
     "@react-native/new-app-screen": "0.83.1",
+    "@react-navigation/native": "^7.1.31",
+    "@react-navigation/native-stack": "^7.14.2",
+    "@react-navigation/stack": "^7.8.4",
+    "@reduxjs/toolkit": "^2.11.2",
+    "@xenova/transformers": "^2.17.2",
+    "onnxruntime-react-native": "^1.20.0",
     "react": "19.2.0",
     "react-native": "0.83.1",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-fs": "^2.20.0",
+    "react-native-gesture-handler": "^2.30.0",
+    "react-native-google-mobile-ads": "^16.0.3",
+    "react-native-linear-gradient": "^2.8.3",
+    "react-native-markdown-display": "^7.0.2",
+    "react-native-reanimated": "^4.2.2",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-screens": "^4.24.0",
+    "react-native-vector-icons": "^10.3.0",
+    "react-native-webview": "^13.16.1",
+    "react-native-worklets": "^0.7.4",
+    "react-redux": "^9.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

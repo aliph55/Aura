@@ -12,7 +12,7 @@ GoogleSignin.configure({
     '799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com', // Web Application tipindeki client ID
 });
 
-const GoogleAuthScreen = () => {
+const GoogleAuthScreen = ({ navigation }) => {
   const [userInfo, setUserInfo] = React.useState(null);
 
   const signIn = async () => {
@@ -21,6 +21,7 @@ const GoogleAuthScreen = () => {
       const user = await GoogleSignin.signIn();
       setUserInfo(user.data);
       console.log('Kullanıcı:', user);
+      navigation.navigate('Download');
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         console.log('Kullanıcı iptal etti');
