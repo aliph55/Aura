@@ -82,8 +82,8 @@ android {
         applicationId "com.alidev.aura"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.4"
+        versionCode 12
+        versionName "2.1"
     }
 signingConfigs {
     debug {
@@ -109,6 +109,8 @@ signingConfigs {
            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
         }
     }
 }
@@ -116,6 +118,7 @@ signingConfigs {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation 'com.google.android.gms:play-services-ads:23.3.0'  // ✅ EKLE
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
@@ -125,3 +128,4 @@ dependencies {
 }
 apply plugin: 'com.google.gms.google-services'
 
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
