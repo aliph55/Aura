@@ -57,11 +57,17 @@ export const ModelProvider = ({ children }) => {
       console.log('📊 Model size:', (stat.size / 1024 / 1024).toFixed(0), 'MB');
 
       console.log('🧠 Creating ONNX session...');
+
+      // YENİ — main thread'i serbest bırak, sonra yükle
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       sessionRef.current = await InferenceSession.create(destPath, {
         executionProviders: ['cpu'],
-        graphOptimizationLevel: 'basic',
+        graphOptimizationLevel: 'disabled', // ← 'basic' yerine 'disabled', ANR önler
         enableCpuMemArena: false,
         enableMemPattern: false,
+        interOpNumThreads: 1, // ← ekle
+        intraOpNumThreads: 1, // ← ekle
       });
 
       setModelLoaded(true);
@@ -77,7 +83,7 @@ export const ModelProvider = ({ children }) => {
     }
   };
 
-  // backward compat
+  // backwalrd compat
   const loadVocab = async () => {};
 
   return (

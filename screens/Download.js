@@ -7,7 +7,6 @@ import {
   Alert,
   TouchableOpacity,
   Dimensions,
-  Animated,
   ScrollView,
 } from 'react-native';
 import RNFS from 'react-native-fs';
@@ -26,27 +25,8 @@ const Download = ({ onDownloadComplete }) => {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('Checking model...');
-  const [pulseAnim] = useState(new Animated.Value(1));
 
   const { loadModel, loadVocab } = useModel();
-
-  useEffect(() => {
-    // Pulse animation for the icon
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-  }, []);
 
   const downloadModel = async () => {
     try {
@@ -305,7 +285,7 @@ Or try downloading again with "Try Again" button.`;
   return (
     <ScrollView style={{ flex: 1 }}>
       <View style={styles.container}>
-        {/* Animated Background Gradients */}
+        {/*  Background Gradients */}
         <View style={styles.bgGradient1} />
         <View style={styles.bgGradient2} />
         <View style={styles.bgGradient3} />
@@ -317,12 +297,7 @@ Or try downloading again with "Try Again" button.`;
 
         <View style={styles.card}>
           {/* Header with Icon */}
-          <Animated.View
-            style={[
-              styles.headerContainer,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
+          <View style={[styles.headerContainer]}>
             <View style={styles.iconWrapper}>
               <View style={styles.iconGradient}>
                 <Text style={styles.iconText}>🧠</Text>
@@ -330,7 +305,7 @@ Or try downloading again with "Try Again" button.`;
               <View style={styles.iconRing1} />
               <View style={styles.iconRing2} />
             </View>
-          </Animated.View>
+          </View>
 
           <Text style={styles.title}>AI Model Setup</Text>
           <Text style={styles.subtitle}>
@@ -339,7 +314,6 @@ Or try downloading again with "Try Again" button.`;
 
           {isDownloading ? (
             <View style={styles.progressContainer}>
-              {/* Animated Loader */}
               <View style={styles.loaderWrapper}>
                 <ActivityIndicator size="large" color="#818CF8" />
                 <View style={styles.loaderGlow} />

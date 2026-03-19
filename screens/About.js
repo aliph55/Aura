@@ -21,8 +21,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setUserInfo } from '../redux/userInfo';
 
 const About = ({ navigation }) => {
-  const [userInfoName, setUserInfoName] = useState();
-
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
   const insets = useSafeAreaInsets();
@@ -68,26 +66,6 @@ const About = ({ navigation }) => {
     );
   };
 
-  const getCurrentUserInfo = async () => {
-    try {
-      const isSignedIn = await GoogleSignin.isSignedIn(); // ✅ önce kontrol et
-      if (!isSignedIn) return; // giriş yoksa hiç deneme
-
-      const info = await GoogleSignin.signInSilently();
-      dispatch(setUserInfo(info?.data));
-      navigation.replace('Download');
-    } catch (error) {
-      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
-        // normal
-      } else {
-        console.log('Silent sign-in error:', error);
-      }
-    }
-  };
-
-  useEffect(() => {
-    getCurrentUserInfo();
-  }, []);
   const menu = [
     {
       icon: 'shield',
@@ -137,7 +115,7 @@ const About = ({ navigation }) => {
           <View style={{ width: 28 }} />
         </View>
 
-        {/* Animated Background */}
+        {/*  Background */}
         <View style={styles.bgGradient1} />
         <View style={styles.bgGradient2} />
         <View style={styles.bgGradient3} />

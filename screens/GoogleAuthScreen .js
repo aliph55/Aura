@@ -1,10 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
   Dimensions,
   StatusBar,
 } from 'react-native';
@@ -22,85 +21,28 @@ const GoogleAuthScreen = ({ navigation }) => {
   const [userInfo, setUser] = React.useState(null);
   const dispatch = useDispatch();
 
-  // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(40)).current;
-  const scaleAnim = useRef(new Animated.Value(0.92)).current;
-  const orb1Anim = useRef(new Animated.Value(0)).current;
-  const orb2Anim = useRef(new Animated.Value(0)).current;
-  const buttonAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
+  React.useEffect(() => {
     GoogleSignin.configure({
       webClientId:
         '799076129257-lj6b7jfpu8hsu9o9bme39ehh4742n26m.apps.googleusercontent.com',
     });
-
-    // Orb floating animations
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(orb1Anim, {
-          toValue: 1,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(orb1Anim, {
-          toValue: 0,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(orb2Anim, {
-          toValue: 1,
-          duration: 5500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(orb2Anim, {
-          toValue: 0,
-          duration: 5500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
-    // Entrance animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 900,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 60,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 60,
-        friction: 12,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      Animated.spring(buttonAnim, {
-        toValue: 1,
-        tension: 70,
-        friction: 10,
-        useNativeDriver: true,
-      }).start();
-    });
   }, []);
 
-  // ✅ Silent sign-in — daha önce giriş yaptıysa direkt geç
+  React.useEffect(() => {
+    getCurrentUserInfo();
+  }, []);
+
   const getCurrentUserInfo = async () => {
     try {
-      const isSignedIn = await GoogleSignin.isSignedIn(); // ✅ önce kontrol et
-      if (!isSignedIn) return; // giriş yoksa hiç deneme
+      const currentUser = GoogleSignin.getCurrentUser();
+      if (currentUser) {
+        dispatch(setUserInfo(currentUser));
+        navigation.replace('Download');
+        return;
+      }
+
+      const isSignedIn = await GoogleSignin.isSignedIn();
+      if (!isSignedIn) return;
 
       const info = await GoogleSignin.signInSilently();
       dispatch(setUserInfo(info?.data));
@@ -113,10 +55,6 @@ const GoogleAuthScreen = ({ navigation }) => {
       }
     }
   };
-
-  useEffect(() => {
-    getCurrentUserInfo();
-  }, []);
 
   const signIn = async () => {
     try {
@@ -136,7 +74,6 @@ const GoogleAuthScreen = ({ navigation }) => {
     }
   };
 
-  // ✅ Sign out — state temizle, giriş ekranına dön
   const signOut = async () => {
     try {
       await GoogleSignin.signOut();
@@ -148,41 +85,18 @@ const GoogleAuthScreen = ({ navigation }) => {
     }
   };
 
-  const orb1TranslateY = orb1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -22],
-  });
-  const orb2TranslateY = orb2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 18],
-  });
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#060811" />
 
-      {/* Background orbs */}
-      <Animated.View
-        style={[styles.orb1, { transform: [{ translateY: orb1TranslateY }] }]}
-      />
-      <Animated.View
-        style={[styles.orb2, { transform: [{ translateY: orb2TranslateY }] }]}
-      />
+      {/* Background orbs — artık static */}
+      <View style={styles.orb1} />
+      <View style={styles.orb2} />
       <View style={styles.orb3} />
-
-      {/* Noise overlay */}
       <View style={styles.noiseOverlay} />
 
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-          },
-        ]}
-      >
-        {/* Logo mark */}
+      <View style={styles.content}>
+        {/* Logo */}
         <View style={styles.logoArea}>
           <View style={styles.logoRing}>
             <View style={styles.logoInner}>
@@ -202,7 +116,7 @@ const GoogleAuthScreen = ({ navigation }) => {
           <Text style={styles.subtitle}>Think deeper.{'\n'}Create faster.</Text>
         </View>
 
-        {/* Feature pills */}
+        {/* Pills */}
         <View style={styles.pillRow}>
           {['Private', 'On-Device', 'Instant'].map((label, i) => (
             <View key={i} style={styles.pill}>
@@ -212,23 +126,8 @@ const GoogleAuthScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* CTA Area */}
-        <Animated.View
-          style={[
-            styles.ctaArea,
-            {
-              opacity: buttonAnim,
-              transform: [
-                {
-                  translateY: buttonAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
+        {/* CTA */}
+        <View style={styles.ctaArea}>
           {userInfo ? (
             <View style={styles.loggedInArea}>
               <Text style={styles.welcomeText}>Welcome back</Text>
@@ -262,8 +161,8 @@ const GoogleAuthScreen = ({ navigation }) => {
               </Text>
             </>
           )}
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </View>
 
       {/* Bottom bar */}
       <View style={styles.bottomBar}>

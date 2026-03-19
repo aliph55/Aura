@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Dimensions,
   FlatList,
-  Animated,
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,9 +40,9 @@ const slides = [
   {
     id: '4',
     icon: '🌍',
-    title: 'English Only',
+    title: 'Multilingual',
     description:
-      'This AI currently supports English language conversations only',
+      'This AI supports multiple languages including English and Turkish',
     color: '#c026d3',
   },
 ];
@@ -53,25 +52,18 @@ const Presentation = ({ navigation }) => {
   const [isChecking, setIsChecking] = useState(true);
 
   const flatListRef = useRef(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
   const userInfo = useSelector(state => state.userInfo.user);
 
   useEffect(() => {
-    console.log('userInfo ', userInfo);
     checkIfSeen();
   }, []);
 
   const checkIfSeen = async () => {
     try {
       const hasSeen = await AsyncStorage.getItem('hasSeenPresentation');
-
       if (hasSeen === 'true') {
-        // Daha önce görmüş, direkt Download'a git
-        console.log('✅ User has seen presentation, going to Download');
-        navigation.replace(userInfo === null ? 'Signin' : 'Download'); // ✅ doğru
+        navigation.replace(userInfo === null ? 'Signin' : 'Download');
       } else {
-        // İlk kez, slides'ı göster
-        console.log('🆕 First time user, showing presentation');
         setIsChecking(false);
       }
     } catch (error) {
@@ -96,11 +88,7 @@ const Presentation = ({ navigation }) => {
 
   const handleComplete = async () => {
     try {
-      console.log('✅ Presentation completed, saving to storage');
-      // İşaretle ki bir daha gösterilmesin
       await AsyncStorage.setItem('hasSeenPresentation', 'true');
-      // Download sayfasına git
-      console.log('🚀 Navigating to Download');
       navigation.replace(userInfo ? 'Download' : 'Signin');
     } catch (error) {
       console.error('❌ Save error:', error);
@@ -119,44 +107,24 @@ const Presentation = ({ navigation }) => {
     </View>
   );
 
+  // Animated olmadan basit dot
   const renderDots = () => (
     <View style={styles.dotsContainer}>
-      {slides.map((_, index) => {
-        const inputRange = [
-          (index - 1) * width,
-          index * width,
-          (index + 1) * width,
-        ];
-
-        const dotWidth = scrollX.interpolate({
-          inputRange,
-          outputRange: [12, 32, 12],
-          extrapolate: 'clamp',
-        });
-
-        const opacity = scrollX.interpolate({
-          inputRange,
-          outputRange: [0.4, 1, 0.4],
-          extrapolate: 'clamp',
-        });
-
-        return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.dot,
-              {
-                width: dotWidth,
-                opacity,
-              },
-            ]}
-          />
-        );
-      })}
+      {slides.map((_, index) => (
+        <View
+          key={index}
+          style={[
+            styles.dot,
+            {
+              width: currentIndex === index ? 32 : 12,
+              opacity: currentIndex === index ? 1 : 0.4,
+            },
+          ]}
+        />
+      ))}
     </View>
   );
 
-  // Loading durumu
   if (isChecking) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -167,7 +135,7 @@ const Presentation = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Animated.FlatList
+      <FlatList
         ref={flatListRef}
         data={slides}
         renderItem={renderSlide}
@@ -175,10 +143,6 @@ const Presentation = ({ navigation }) => {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={item => item.id}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false },
-        )}
         onMomentumScrollEnd={event => {
           const index = Math.round(event.nativeEvent.contentOffset.x / width);
           setCurrentIndex(index);

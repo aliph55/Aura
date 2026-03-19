@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Text,
   StyleSheet,
@@ -6,14 +6,12 @@ import {
   TouchableOpacity,
   StatusBar,
   View,
-  Animated,
 } from 'react-native';
 import {
   GoogleSignin,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { setUserInfo } from '../redux/userInfo';
-import { useDispatch } from 'react-redux';
 
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
@@ -22,27 +20,16 @@ import { useSelector } from 'react-redux';
 
 const Home = ({ navigation }) => {
   const [recentChats, setRecentChats] = useState([]);
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(50));
+
+  const animationRef = useRef(null);
+
   const [userInfoName, setUserInfoName] = useState();
 
-  const getCurrentUserInfo = async () => {
-    try {
-      const userInfo = await GoogleSignin.signInSilently();
-      console.log('getCurrentUserInfo ', userInfo?.data?.user);
-      setUserInfoName(userInfo?.data?.user);
-      // dispatch(setUserInfo(userInfo?.data));
-    } catch (error) {
-      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
-        // user has not signed in yet
-      } else {
-        // some other error
-      }
-    }
-  };
+  const user = useSelector(state => state.userInfo?.user);
+  console.log('user: ', user?.user);
 
   useEffect(() => {
-    getCurrentUserInfo();
+    //  getCurrentUserInfo();
   }, []);
 
   useEffect(() => {
@@ -50,21 +37,6 @@ const Home = ({ navigation }) => {
   }, []);
   useEffect(() => {
     console.log(userInfoName);
-  }, []);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
   }, []);
 
   const loadRecentChats = async () => {
@@ -201,15 +173,7 @@ const Home = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Hero Section */}
-        <Animated.View
-          style={[
-            styles.heroSection,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
+        <View style={[styles.heroSection]}>
           <LinearGradient
             colors={['#6366F1', '#8B5CF6', '#A855F7']}
             start={{ x: 0, y: 0 }}
@@ -220,7 +184,7 @@ const Home = ({ navigation }) => {
             <View style={styles.heroContent}>
               <View style={styles.greetingContainer}>
                 <Text style={styles.greeting}>
-                  Hey {userInfoName?.givenName || 'There'}
+                  Hey {user?.user?.givenName || 'There'}
                 </Text>
                 <Text style={styles.waveEmoji}>👋</Text>
               </View>
@@ -265,7 +229,7 @@ const Home = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </LinearGradient>
-        </Animated.View>
+        </View>
 
         {/* Recent Chats */}
         <View style={styles.section}>

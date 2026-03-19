@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   View,
   TouchableOpacity,
@@ -124,32 +123,27 @@ const Chat = ({ route, navigation }) => {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <MessageList
-          messages={messages}
-          modelLoaded={modelLoaded}
-          isStreaming={isStreaming}
-          streamingText={streamingText}
-          scrollViewRef={scrollViewRef}
-        />
-        <ChatInput
-          inputText={inputText}
-          setInputText={setInputText}
-          modelLoaded={modelLoaded}
-          isStreaming={isStreaming}
-          sendMessage={sendMessage}
-        />
-        <GroupNameModal
-          isGroupNameModalVisible={isGroupNameModalVisible}
-          setGroupNameModalVisible={setGroupNameModalVisible}
-          newGroupName={newGroupName}
-          setNewGroupName={setNewGroupName}
-          updateGroupName={updateGroupName}
-        />
-      </KeyboardAvoidingView>
+      <MessageList
+        messages={messages}
+        modelLoaded={modelLoaded}
+        isStreaming={isStreaming}
+        streamingText={streamingText}
+        scrollViewRef={scrollViewRef}
+      />
+      <ChatInput
+        inputText={inputText}
+        setInputText={setInputText}
+        modelLoaded={modelLoaded}
+        isStreaming={isStreaming}
+        sendMessage={sendMessage}
+      />
+      <GroupNameModal
+        isGroupNameModalVisible={isGroupNameModalVisible}
+        setGroupNameModalVisible={setGroupNameModalVisible}
+        newGroupName={newGroupName}
+        setNewGroupName={setNewGroupName}
+        updateGroupName={updateGroupName}
+      />
     </View>
   );
 };

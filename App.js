@@ -29,6 +29,8 @@ const App = () => {
               screenOptions={{
                 headerStyle: { backgroundColor: '#1e293b' },
                 headerTintColor: '#fff',
+                animation: 'none', // ← tüm geçiş animasyonlarını kapat
+
                 //  headerTitleStyle: { fontWeight: '700' },
                 // cardStyle: { backgroundColor: '#0f172a' }, // ← tüm ekranlar için
               }}
