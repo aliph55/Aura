@@ -345,25 +345,6 @@ Or try downloading again with "Try Again" button.`;
                   </View>
 
                   {/* Stats Grid */}
-                  <View style={styles.statsGrid}>
-                    <View style={styles.statBox}>
-                      <View style={styles.statIconContainer}>
-                        <Text style={styles.statIcon}>📊</Text>
-                      </View>
-                      <Text style={styles.statLabel}>Progress</Text>
-                      <Text style={styles.statValue}>
-                        {downloadProgress.toFixed(1)}%
-                      </Text>
-                    </View>
-
-                    <View style={styles.statBox}>
-                      <View style={styles.statIconContainer}>
-                        <Text style={styles.statIcon}>⚡</Text>
-                      </View>
-                      <Text style={styles.statLabel}>Status</Text>
-                      <Text style={styles.statValue}>Active</Text>
-                    </View>
-                  </View>
                 </View>
               )}
 
