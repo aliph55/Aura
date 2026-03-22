@@ -9,10 +9,12 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNFS from 'react-native-fs';
 import { useModel } from '../contexts/ModelContext';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const MODEL_URL =
   'https://media.githubusercontent.com/media/aliph55/qwen-model/refs/heads/master/qwen-int8.onnx';
@@ -25,7 +27,6 @@ const Download = ({ onDownloadComplete }) => {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('Checking model...');
-
   const { loadModel, loadVocab } = useModel();
 
   const downloadModel = async () => {
@@ -33,44 +34,23 @@ const Download = ({ onDownloadComplete }) => {
       setIsDownloading(true);
       setError(null);
       setStatusMessage('Checking model...');
-
       const exists = await RNFS.exists(MODEL_LOCAL_PATH);
       if (exists) {
-        console.log('✅ Model file found, validating...');
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-        console.log('📊 Current model size:', stat.size, 'bytes');
-        console.log('📊 Expected size:', EXPECTED_MODEL_SIZE, 'bytes');
-
         if (stat.size >= MIN_VALID_SIZE) {
-          console.log('✅ Model is valid, skipping download.');
           setStatusMessage('Model is ready!');
-
           await loadModel();
           await loadVocab();
-
-          if (typeof onDownloadComplete === 'function') {
+          if (typeof onDownloadComplete === 'function')
             onDownloadComplete(MODEL_LOCAL_PATH);
-          } else {
-            console.error('❌ onDownloadComplete function is not defined.');
-            setError('Application configuration error.');
-          }
+          else setError('Application configuration error.');
           setIsDownloading(false);
           return;
         } else {
-          console.log('⚠️ Model file is incomplete or corrupted!');
-          console.log(
-            `📊 Current: ${stat.size} bytes, Expected: ${EXPECTED_MODEL_SIZE} bytes`,
-          );
-          console.log('🗑️ Deleting old file...');
           await RNFS.unlink(MODEL_LOCAL_PATH);
-          console.log('✅ Old file deleted, starting download...');
         }
       }
-
-      console.log('📥 Downloading model...');
-      console.log('🔗 URL:', MODEL_URL);
       setStatusMessage('Downloading model...');
-
       const downloadOptions = {
         fromUrl: MODEL_URL,
         toFile: MODEL_LOCAL_PATH,
@@ -78,139 +58,36 @@ const Download = ({ onDownloadComplete }) => {
         progressDivider: 1,
         connectionTimeout: 30000,
         readTimeout: 30000,
-        begin: res => {
-          console.log('🚀 Download started');
-          console.log('📊 Total size:', res.contentLength, 'bytes');
-          console.log('📊 Status code:', res.statusCode);
-
-          if (res.contentLength && res.contentLength < MIN_VALID_SIZE) {
-            console.warn('⚠️ Server response size is smaller than expected!');
-          }
-        },
+        begin: () => {},
         progress: res => {
-          const progressPercent =
+          const p =
             res.contentLength > 0
               ? (res.bytesWritten / res.contentLength) * 100
               : (res.bytesWritten / EXPECTED_MODEL_SIZE) * 100;
-
-          setDownloadProgress(progressPercent);
-
-          if (Math.floor(progressPercent) % 5 === 0) {
-            console.log(
-              `📥 Downloaded: ${progressPercent.toFixed(1)}% (${(
-                res.bytesWritten /
-                1024 /
-                1024
-              ).toFixed(1)} MB / ${(res.contentLength / 1024 / 1024).toFixed(
-                1,
-              )} MB)`,
-            );
-          }
-
-          setStatusMessage(`Downloading: ${progressPercent.toFixed(0)}%`);
+          setDownloadProgress(p);
+          setStatusMessage(`Downloading: ${p.toFixed(0)}%`);
         },
       };
-
       const result = await RNFS.downloadFile(downloadOptions).promise;
-
-      console.log('✅ Download completed, status code:', result.statusCode);
-      console.log('📊 Bytes written:', result.bytesWritten);
-
       if (result.statusCode === 200) {
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-        console.log('📊 Downloaded file size:', stat.size, 'bytes');
-        console.log('📊 Expected size:', EXPECTED_MODEL_SIZE, 'bytes');
-
         if (stat.size < MIN_VALID_SIZE) {
-          console.error('❌ Downloaded file is too small!');
           await RNFS.unlink(MODEL_LOCAL_PATH);
-          throw new Error(
-            `Downloaded file is incomplete! Downloaded: ${(
-              stat.size /
-              1024 /
-              1024
-            ).toFixed(1)} MB, Expected: ${(
-              EXPECTED_MODEL_SIZE /
-              1024 /
-              1024
-            ).toFixed(1)} MB`,
-          );
+          throw new Error('Downloaded file is incomplete!');
         }
-
-        if (stat.size === 0) {
-          await RNFS.unlink(MODEL_LOCAL_PATH);
-          throw new Error('Downloaded file is empty!');
-        }
-
-        try {
-          const firstBytes = await RNFS.read(
-            MODEL_LOCAL_PATH,
-            100,
-            0,
-            'base64',
-          );
-          const decoded = Buffer.from(firstBytes, 'base64').toString('utf8');
-
-          console.log(
-            '📄 File beginning (first 50 characters):',
-            decoded.substring(0, 50),
-          );
-
-          if (
-            decoded.includes('<!DOCTYPE html>') ||
-            decoded.includes('<html')
-          ) {
-            console.error('❌ HTML page downloaded! (Probably an error page)');
-            await RNFS.unlink(MODEL_LOCAL_PATH);
-            throw new Error(
-              'Server returned an error page. Please check the URL.',
-            );
-          }
-        } catch (readError) {
-          console.log('ℹ️ File is in binary format (expected)');
-        }
-
-        console.log('✅ Model successfully downloaded and validated!');
         setStatusMessage('Model downloaded successfully!');
-
         await loadModel();
         await loadVocab();
-
-        if (typeof onDownloadComplete === 'function') {
+        if (typeof onDownloadComplete === 'function')
           onDownloadComplete(MODEL_LOCAL_PATH);
-        } else {
-          console.error('❌ onDownloadComplete function is not defined.');
-          setError('Application configuration error.');
-        }
+        else setError('Application configuration error.');
       } else {
         throw new Error(`Download error, status code: ${result.statusCode}`);
       }
     } catch (err) {
-      console.error('❌ Model download error:', err);
-      console.error('Error detail:', err.stack);
-
-      const errorMessage = `Model download failed: ${err.message}
-
-📋 Solutions:
-
-1️⃣ Check Internet Connection
-   • Use Wi-Fi for better speed
-   • Disable VPN if active
-   • Try mobile data
-
-2️⃣ Download Manually
-   • URL: https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx
-   • Size: ~650 MB
-   • Place in: android/app/src/main/assets/model.onnx
-   • Rebuild app: npm run android
-
-3️⃣ Use "Try Again" or "Load from Assets" button
-
-⚠️ Note: Model file (model.onnx) is currently missing from assets folder.`;
-
-      setError(errorMessage);
+      setError(err.message);
       setStatusMessage('Error occurred');
-      Alert.alert('Model Download Error', errorMessage);
+      Alert.alert('Model Download Error', err.message);
     } finally {
       setIsDownloading(false);
     }
@@ -228,83 +105,66 @@ const Download = ({ onDownloadComplete }) => {
 
   const handleSkip = async () => {
     try {
-      console.log('ℹ️ Trying to load from assets...');
       setIsDownloading(true);
       setStatusMessage('Loading from assets...');
-
-      // Check if model exists in assets
-      const assetPath = 'model.onnx';
-      const exists = await RNFS.existsAssets(assetPath);
-
-      if (!exists) {
-        throw new Error(
-          'Model file not found in assets folder. Please download the model from AWS S3 and place it in android/app/src/main/assets/model.onnx',
-        );
-      }
-
-      console.log('✅ Model found in assets, copying to documents...');
-
-      // Copy from assets to documents directory
-      await RNFS.copyFileAssets(assetPath, MODEL_LOCAL_PATH);
-
+      const exists = await RNFS.existsAssets('model.onnx');
+      if (!exists) throw new Error('Model file not found in assets folder.');
+      await RNFS.copyFileAssets('model.onnx', MODEL_LOCAL_PATH);
       const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-      console.log('📊 Copied file size:', stat.size, 'bytes');
-
-      if (stat.size < MIN_VALID_SIZE) {
-        throw new Error('Model file in assets is too small or corrupted!');
-      }
-
-      console.log('✅ Model copied successfully from assets!');
+      if (stat.size < MIN_VALID_SIZE)
+        throw new Error('Model file in assets is too small!');
       setStatusMessage('Model loaded from assets!');
-
       await loadModel();
       await loadVocab();
-
-      if (typeof onDownloadComplete === 'function') {
+      if (typeof onDownloadComplete === 'function')
         onDownloadComplete(MODEL_LOCAL_PATH);
-      }
     } catch (err) {
-      console.error('❌ Load from assets error:', err);
-
-      const errorMessage = `Could not load model from assets: ${err.message}
-
-To fix this:
-1. Download model.onnx from: https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx
-2. Place it in: android/app/src/main/assets/model.onnx
-3. Rebuild the app: npm run android
-
-Or try downloading again with "Try Again" button.`;
-
-      setError(errorMessage);
-      Alert.alert('Asset Load Error', errorMessage);
+      setError(err.message);
+      Alert.alert('Asset Load Error', err.message);
     } finally {
       setIsDownloading(false);
     }
   };
 
   return (
-    <ScrollView style={{ flex: 1 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
       <View style={styles.container}>
-        {/*  Background Gradients */}
-        <View style={styles.bgGradient1} />
-        <View style={styles.bgGradient2} />
-        <View style={styles.bgGradient3} />
-
-        {/* Floating Particles */}
-        <View style={[styles.particle, styles.particle1]} />
-        <View style={[styles.particle, styles.particle2]} />
-        <View style={[styles.particle, styles.particle3]} />
+        <LinearGradient
+          colors={['#0d0820', '#1a1040', '#0a1628', '#041020']}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.orb1} />
+        <View style={styles.orb2} />
+        <View style={styles.orb3} />
 
         <View style={styles.card}>
-          {/* Header with Icon */}
-          <View style={[styles.headerContainer]}>
-            <View style={styles.iconWrapper}>
-              <View style={styles.iconGradient}>
-                <Text style={styles.iconText}>🧠</Text>
-              </View>
-              <View style={styles.iconRing1} />
-              <View style={styles.iconRing2} />
-            </View>
+          <LinearGradient
+            colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+            borderRadius={28}
+          />
+
+          {/* Icon */}
+          <View style={styles.iconWrapper}>
+            <LinearGradient
+              colors={['#a78bfa', '#6366f1', '#4f46e5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.iconGradient}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.03)']}
+                style={StyleSheet.absoluteFillObject}
+                borderRadius={28}
+              />
+              <MaterialIcons name="auto-awesome" size={52} color="#fff" />
+            </LinearGradient>
+            <View style={styles.iconRing1} />
+            <View style={styles.iconRing2} />
           </View>
 
           <Text style={styles.title}>AI Model Setup</Text>
@@ -315,102 +175,136 @@ Or try downloading again with "Try Again" button.`;
           {isDownloading ? (
             <View style={styles.progressContainer}>
               <View style={styles.loaderWrapper}>
-                <ActivityIndicator size="large" color="#818CF8" />
+                <ActivityIndicator size="large" color="#a78bfa" />
                 <View style={styles.loaderGlow} />
               </View>
-
               <Text style={styles.statusText}>{statusMessage}</Text>
-
               {downloadProgress > 0 && (
                 <View style={styles.progressSection}>
-                  {/* Progress Bar */}
                   <View style={styles.progressBarContainer}>
                     <View style={styles.progressBarBg}>
-                      <View
+                      <LinearGradient
+                        colors={['#6366f1', '#8b5cf6', '#a78bfa']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
                         style={[
                           styles.progressBarFill,
                           { width: `${downloadProgress}%` },
                         ]}
                       >
                         <View style={styles.progressShimmer} />
-                      </View>
+                      </LinearGradient>
                     </View>
-
-                    {/* Progress Percentage Badge */}
                     <View style={styles.progressBadge}>
                       <Text style={styles.progressBadgeText}>
                         {downloadProgress.toFixed(0)}%
                       </Text>
                     </View>
                   </View>
-
-                  {/* Stats Grid */}
                 </View>
               )}
-
-              {/* Info Card */}
               <View style={styles.infoCard}>
+                <LinearGradient
+                  colors={['rgba(59,130,246,0.12)', 'rgba(59,130,246,0.04)']}
+                  style={StyleSheet.absoluteFillObject}
+                  borderRadius={20}
+                />
                 <View style={styles.infoHeader}>
                   <View style={styles.infoIconBox}>
-                    <Text style={styles.infoIcon}>ℹ️</Text>
+                    <MaterialIcons
+                      name="info-outline"
+                      size={20}
+                      color="#60A5FA"
+                    />
                   </View>
                   <Text style={styles.infoTitle}>First Time Setup</Text>
                 </View>
                 <View style={styles.infoDivider} />
                 <Text style={styles.infoText}>
                   • Model download required on first use{'\n'}• File size: ~650
-                  MB
-                  {'\n'}• One-time process{'\n'}• May take a few minutes
+                  MB{'\n'}• One-time process{'\n'}• May take a few minutes
                 </Text>
               </View>
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
-              {/* Error Icon */}
               <View style={styles.errorIconWrapper}>
                 <View style={styles.errorIconBg}>
-                  <Text style={styles.errorIcon}>⚠️</Text>
+                  <MaterialIcons
+                    name="error-outline"
+                    size={48}
+                    color="#f87171"
+                  />
                 </View>
                 <View style={styles.errorIconGlow} />
               </View>
-
               <Text style={styles.errorTitle}>Download Failed</Text>
               <View style={styles.errorMessageBox}>
+                <LinearGradient
+                  colors={['rgba(239,68,68,0.10)', 'rgba(239,68,68,0.04)']}
+                  style={StyleSheet.absoluteFillObject}
+                  borderRadius={18}
+                />
                 <Text style={styles.errorMessage}>{error}</Text>
               </View>
-
-              {/* Action Buttons */}
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={handleRetry}
                   activeOpacity={0.85}
                 >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.buttonIcon}>🔄</Text>
+                  <LinearGradient
+                    colors={['#6366f1', '#8b5cf6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.primaryButtonGradient}
+                  >
+                    <LinearGradient
+                      colors={[
+                        'rgba(255,255,255,0.15)',
+                        'rgba(255,255,255,0.03)',
+                      ]}
+                      style={StyleSheet.absoluteFillObject}
+                      borderRadius={16}
+                    />
+                    <MaterialIcons
+                      name="refresh"
+                      size={22}
+                      color="#fff"
+                      style={{ marginRight: 10 }}
+                    />
                     <Text style={styles.buttonText}>Try Again</Text>
-                  </View>
-                  <View style={styles.buttonGlow} />
+                  </LinearGradient>
                 </TouchableOpacity>
-
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   onPress={handleSkip}
                   activeOpacity={0.85}
                 >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.buttonIcon}>📁</Text>
-                    <Text style={styles.secondaryButtonText}>
-                      Load from Assets
-                    </Text>
-                  </View>
+                  <LinearGradient
+                    colors={[
+                      'rgba(255,255,255,0.08)',
+                      'rgba(255,255,255,0.03)',
+                    ]}
+                    style={StyleSheet.absoluteFillObject}
+                    borderRadius={16}
+                  />
+                  <MaterialIcons
+                    name="folder-open"
+                    size={22}
+                    color="rgba(255,255,255,0.8)"
+                    style={{ marginRight: 10 }}
+                  />
+                  <Text style={styles.secondaryButtonText}>
+                    Load from Assets
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View style={styles.progressContainer}>
               <View style={styles.loaderWrapper}>
-                <ActivityIndicator size="large" color="#818CF8" />
+                <ActivityIndicator size="large" color="#a78bfa" />
                 <View style={styles.loaderGlow} />
               </View>
               <Text style={styles.statusText}>{statusMessage}</Text>
@@ -429,447 +323,287 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0F1E',
-    position: 'relative',
-    overflow: 'hidden',
+    minHeight: '100%',
+    backgroundColor: '#0d0820',
   },
-
-  // Background Gradients
-  bgGradient1: {
+  orb1: {
     position: 'absolute',
-    width: 500,
-    height: 500,
-    borderRadius: 250,
-    backgroundColor: 'rgba(99, 102, 241, 0.05)',
-    top: -200,
-    right: -200,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(139,92,246,0.15)',
+    top: -140,
+    right: -120,
   },
-  bgGradient2: {
+  orb2: {
     position: 'absolute',
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: 'rgba(168, 85, 247, 0.05)',
-    bottom: -150,
-    left: -150,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(99,102,241,0.12)',
+    bottom: -100,
+    left: -100,
   },
-  bgGradient3: {
+  orb3: {
     position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(167,139,250,0.08)',
     top: '40%',
-    right: -100,
+    right: -60,
   },
-
-  // Floating Particles
-  particle: {
-    position: 'absolute',
-    borderRadius: 50,
-    backgroundColor: 'rgba(129, 140, 248, 0.1)',
-  },
-  particle1: {
-    width: 8,
-    height: 8,
-    top: '20%',
-    left: '15%',
-  },
-  particle2: {
-    width: 12,
-    height: 12,
-    top: '60%',
-    right: '20%',
-  },
-  particle3: {
-    width: 6,
-    height: 6,
-    bottom: '30%',
-    left: '25%',
-  },
-
-  // Main Card
   card: {
-    backgroundColor: '#1A1F35',
-    borderRadius: 32,
-    padding: 32,
+    borderRadius: 28,
+    padding: 28,
     width: width * 0.9,
     maxWidth: 420,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.6,
-    shadowRadius: 36,
-    elevation: 15,
     borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.1)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center',
-  },
-
-  // Header & Icon
-  headerContainer: {
-    marginBottom: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
   iconWrapper: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
   iconGradient: {
-    width: 110,
-    height: 110,
-    borderRadius: 32,
-    backgroundColor: '#6366F1',
+    width: 108,
+    height: 108,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.8,
-    shadowRadius: 28,
-    elevation: 12,
     zIndex: 3,
-  },
-  iconText: {
-    fontSize: 56,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.5)',
   },
   iconRing1: {
     position: 'absolute',
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.2)',
     zIndex: 2,
   },
   iconRing2: {
     position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: 158,
+    height: 158,
+    borderRadius: 79,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(167,139,250,0.08)',
     zIndex: 1,
   },
-
-  // Typography
   title: {
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    letterSpacing: -1,
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: -0.5,
     textAlign: 'center',
-    textShadowColor: 'rgba(99, 102, 241, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
   },
   subtitle: {
-    fontSize: 17,
-    color: '#94A3B8',
-    marginBottom: 40,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 32,
     textAlign: 'center',
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontWeight: '500',
   },
-
-  // Progress Container
-  progressContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
+  progressContainer: { width: '100%', alignItems: 'center' },
   loaderWrapper: {
     position: 'relative',
-    width: 90,
-    height: 90,
+    width: 80,
+    height: 80,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   loaderGlow: {
     position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(167,139,250,0.12)',
     zIndex: -1,
   },
   statusText: {
-    fontSize: 17,
-    color: '#F1F5F9',
+    fontSize: 16,
+    color: '#fff',
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 26,
+    marginBottom: 28,
     letterSpacing: 0.2,
   },
-
-  // Progress Section
-  progressSection: {
-    width: '100%',
-    marginBottom: 28,
-  },
-  progressBarContainer: {
-    width: '100%',
-    marginBottom: 24,
-    position: 'relative',
-  },
+  progressSection: { width: '100%', marginBottom: 24 },
+  progressBarContainer: { width: '100%', position: 'relative', marginTop: 16 },
   progressBarBg: {
     width: '100%',
-    height: 18,
-    backgroundColor: '#293548',
-    borderRadius: 12,
+    height: 14,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.1)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
+    borderRadius: 10,
+    overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
   },
   progressShimmer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: '60%',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 12,
+    height: '55%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
   },
   progressBadge: {
     position: 'absolute',
-    right: -8,
-    top: -32,
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 6,
+    right: 0,
+    top: -36,
+    backgroundColor: 'rgba(99,102,241,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
-  progressBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  // Stats Grid
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#293548',
+  progressBadgeText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  infoCard: {
     borderRadius: 20,
     padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.1)',
-  },
-  statIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statIcon: {
-    fontSize: 22,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginBottom: 8,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  statValue: {
-    fontSize: 22,
-    color: '#FFFFFF',
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-
-  // Info Card
-  infoCard: {
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-    borderRadius: 24,
-    padding: 24,
     width: '100%',
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftWidth: 3,
+    borderLeftColor: '#60A5FA',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.15)',
+    borderColor: 'rgba(59,130,246,0.2)',
+    overflow: 'hidden',
+    position: 'relative',
   },
-  infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  infoHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   infoIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(59,130,246,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.25)',
   },
-  infoIcon: {
-    fontSize: 18,
-  },
-  infoTitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
+  infoTitle: { fontSize: 15, color: '#fff', fontWeight: '800' },
   infoDivider: {
     width: '100%',
     height: 1,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    marginBottom: 16,
+    backgroundColor: 'rgba(59,130,246,0.15)',
+    marginBottom: 14,
   },
   infoText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 24,
-    fontWeight: '600',
-    letterSpacing: 0.1,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    lineHeight: 22,
+    fontWeight: '500',
   },
-
-  // Error Container
-  errorContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
+  errorContainer: { width: '100%', alignItems: 'center' },
   errorIconWrapper: {
     position: 'relative',
     width: 90,
     height: 90,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   errorIconBg: {
     width: 90,
     height: 90,
     borderRadius: 28,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: 'rgba(239,68,68,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
     zIndex: 2,
-  },
-  errorIcon: {
-    fontSize: 48,
   },
   errorIconGlow: {
     position: 'absolute',
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: 'rgba(239,68,68,0.08)',
     zIndex: 1,
   },
   errorTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 16,
+    color: '#fff',
+    marginBottom: 14,
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   errorMessageBox: {
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 18,
+    padding: 18,
     width: '100%',
-    marginBottom: 32,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
+    marginBottom: 28,
+    borderLeftWidth: 3,
+    borderLeftColor: '#f87171',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239,68,68,0.2)',
+    overflow: 'hidden',
+    position: 'relative',
   },
   errorMessage: {
-    fontSize: 14,
-    color: '#CBD5E1',
-    textAlign: 'center',
-    lineHeight: 24,
-    fontWeight: '600',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.55)',
+    lineHeight: 22,
+    fontWeight: '500',
   },
-
-  // Buttons
-  buttonGroup: {
-    width: '100%',
-    gap: 14,
-  },
+  buttonGroup: { width: '100%', gap: 12 },
   primaryButton: {
-    position: 'relative',
-    backgroundColor: '#6366F1',
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.4)',
   },
-  buttonContent: {
+  primaryButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 28,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
-  },
-  buttonGlow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    zIndex: 1,
-  },
-  buttonIcon: {
-    fontSize: 22,
-    marginRight: 12,
+    overflow: 'hidden',
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-    backgroundColor: '#293548',
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#3F4B63',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   secondaryButtonText: {
-    color: '#F1F5F9',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

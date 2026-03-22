@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as ort from 'onnxruntime-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, InteractionManager } from 'react-native';
+import { Alert } from 'react-native';
 import { showRewardedAd } from '../adsService';
 import { useModel } from '../../contexts/ModelContext';
 
-const SYSTEM_PROMPT = `You are a helpful multilingual assistant.`;
+const SYSTEM_PROMPT = `You are a helpful multilingual assistant. Always respond in the same language as the user. If the user writes in Turkish, respond in Turkish. If in English, respond in English, and so on. Be concise and helpful.`;
 
 const NUM_LAYERS = 24;
 const NUM_KV_HEADS = 2;
@@ -13,13 +13,12 @@ const HEAD_DIM = 64;
 const TIMER_SECONDS = 420;
 const MAX_HISTORY = 2;
 
-// Kullanıcı mesajı uzunluğuna göre otomatik token limiti
 const getMaxTokens = userMessage => {
   const len = userMessage.trim().length;
-  if (len < 20) return 80; // "hi", "merhaba" → kısa cevap
-  if (len < 60) return 200; // normal soru → orta cevap
-  if (len < 150) return 400; // uzun soru → uzun cevap
-  return 600; // çok uzun soru → maksimum
+  if (len < 20) return 80;
+  if (len < 60) return 200;
+  if (len < 150) return 400;
+  return 600;
 };
 
 const createEmptyPastKV = () => {
@@ -42,9 +41,7 @@ const createEmptyPastKV = () => {
 const disposePastKV = pastKV => {
   if (!pastKV) return;
   try {
-    Object.values(pastKV).forEach(tensor => {
-      tensor?.dispose?.();
-    });
+    Object.values(pastKV).forEach(tensor => tensor?.dispose?.());
   } catch (e) {}
 };
 
@@ -69,7 +66,7 @@ export const useChatLogic = ({ route, navigation }) => {
   const saveTimeoutRef = useRef(null);
   const historyRef = useRef([]);
 
-  // ─── Tokenizer ───────────────────────────────────────────────────────────────
+  // ─── Decode ──────────────────────────────────────────────────────────────────
 
   const decode = useCallback(
     tokenIds => {
@@ -81,7 +78,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   // ─── Token Sampling ──────────────────────────────────────────────────────────
 
-  const sampleToken = (logits, temperature = 0.7, topP = 0.9) => {
+  const sampleToken = (logits, temperature = 0.3, topP = 0.85) => {
     const scaled = logits.map(l => l / temperature);
 
     let maxVal = scaled[0];
@@ -118,9 +115,9 @@ export const useChatLogic = ({ route, navigation }) => {
   const generateResponse = useCallback(
     async userMessage => {
       if (!sessionRef?.current) throw new Error('Model not loaded');
+      if (!tokenizerRef?.current) throw new Error('Tokenizer not loaded');
 
       const limitedHistory = historyRef.current.slice(-MAX_HISTORY);
-
       const inputIds = tokenizerRef.current.encodeChat(
         SYSTEM_PROMPT,
         userMessage,
@@ -129,7 +126,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
       const seqLen = inputIds.length;
       const maxTokens = getMaxTokens(userMessage);
-      console.log('📝 Prompt length:', seqLen, 'tokens | Max new:', maxTokens);
+      console.log('📝 Prompt:', seqLen, 'tokens | Max new:', maxTokens);
 
       let currentInputIds = new BigInt64Array(inputIds.map(BigInt));
       let attentionMask = new BigInt64Array(seqLen).fill(1n);
@@ -163,13 +160,7 @@ export const useChatLogic = ({ route, navigation }) => {
           };
 
           const results = await sessionRef.current.run(feeds);
-
           disposePastKV(pastKV);
-
-          if (step === 0) {
-            console.log('📤 Output keys:', Object.keys(results));
-            console.log('📊 Logits dims:', results.logits?.dims);
-          }
 
           const logits = results.logits.data;
           const vocabSize = results.logits.dims[2];
@@ -180,24 +171,17 @@ export const useChatLogic = ({ route, navigation }) => {
           const nextTokenId = sampleToken(lastLogits);
 
           if (nextTokenId === 151645 || nextTokenId === 151643) {
-            console.log('✅ EOS token, stopping');
+            console.log('✅ EOS at step', step);
             break;
           }
 
           generatedIds.push(nextTokenId);
 
-          // Her 8 token'da bir UI güncelle — animasyon çakışmasını önler
-          if (step % 8 === 0) {
+          // Her 3 token'da UI güncelle
+          if (step % 3 === 0) {
             fullText = decode(generatedIds);
-            await new Promise(resolve => {
-              InteractionManager.runAfterInteractions(() => {
-                setStreamingText(fullText);
-                resolve();
-              });
-            });
-            await new Promise(r => setTimeout(r, 80));
-          } else {
-            await new Promise(r => setTimeout(r, 5));
+            setStreamingText(fullText);
+            await new Promise(r => setTimeout(r, 20));
           }
 
           currentInputIds = new BigInt64Array([BigInt(nextTokenId)]);
@@ -214,10 +198,9 @@ export const useChatLogic = ({ route, navigation }) => {
           pastKV = newPastKV;
         }
 
-        // Son token'ları decode et
+        // Son decode
         disposePastKV(pastKV);
         pastKV = null;
-
         if (generatedIds.length > 0) {
           fullText = decode(generatedIds);
           setStreamingText(fullText);
@@ -226,7 +209,7 @@ export const useChatLogic = ({ route, navigation }) => {
         setIsStreaming(false);
       }
 
-      console.log('✅ Final response:', fullText);
+      console.log('✅ Response:', fullText);
       return fullText || 'No response generated.';
     },
     [sessionRef, tokenizerRef, decode],
@@ -292,7 +275,7 @@ export const useChatLogic = ({ route, navigation }) => {
     } catch (e) {
       console.error('Load error:', e);
     }
-  }, [groupId, chatId]);
+  }, [groupId, chatId, saveGroups]);
 
   // ─── Chat Actions ─────────────────────────────────────────────────────────────
 
@@ -308,7 +291,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
     let newTitle = title;
     if (!title && messages.length === 0) {
-      newTitle = userText.slice(0, 7);
+      newTitle = userText.slice(0, 30);
       setTitle(newTitle);
     }
 
@@ -467,7 +450,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   useEffect(() => {
     return navigation.addListener('focus', loadGroups);
-  }, [navigation]);
+  }, [navigation, loadGroups]);
 
   useEffect(() => {
     return () => clearTimeout(saveTimeoutRef.current);

@@ -42,6 +42,8 @@ const About = ({ navigation }) => {
         onPress: async () => {
           await GoogleSignin.signOut();
           dispatch(setUserInfo(null));
+          await AsyncStorage.clear();
+
           navigation.replace('Signin'); // ✅ Signin = GoogleAuthScreen
         },
       },

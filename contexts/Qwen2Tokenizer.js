@@ -157,7 +157,10 @@ export class Qwen2Tokenizer {
     }
 
     // TextDecoder yerine manuel UTF-8 decode
-    return this._utf8Decode(bytes);
+    return this._utf8Decode(bytes)
+      .replace(/Ġ/g, ' ')
+      .replace(/Ċ/g, '\n')
+      .replace(/ĉ/g, '\t');
   }
 
   _utf8Decode(bytes) {
