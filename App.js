@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { AdsProvider } from './contexts/adsContext'; // ← ekle
 
 import Home from './screens/Home';
 import { Provider, useDispatch } from 'react-redux';
@@ -22,75 +23,79 @@ const App = () => {
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       <Provider store={store}>
-        <ModelProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              initialRouteName="Presentation"
-              screenOptions={{
-                headerStyle: { backgroundColor: '#1e293b' },
-                headerTintColor: '#fff',
-                animation: 'none', // ← tüm geçiş animasyonlarını kapat
+        <AdsProvider>
+          {/* ← ekle */}
+          <ModelProvider>
+            <NavigationContainer>
+              <Stack.Navigator
+                initialRouteName="Presentation"
+                screenOptions={{
+                  headerStyle: { backgroundColor: '#1e293b' },
+                  headerTintColor: '#fff',
+                  animation: 'none', // ← tüm geçiş animasyonlarını kapat
 
-                //  headerTitleStyle: { fontWeight: '700' },
-                // cardStyle: { backgroundColor: '#0f172a' }, // ← tüm ekranlar için
-              }}
-            >
-              <Stack.Screen
-                name="Download"
-                options={{
-                  headerShown: false,
+                  //  headerTitleStyle: { fontWeight: '700' },
+                  // cardStyle: { backgroundColor: '#0f172a' }, // ← tüm ekranlar için
                 }}
               >
-                {({ navigation }) => (
-                  <Download
-                    onDownloadComplete={() => {
-                      console.log('✅ Model ready, going to Home...');
-                      navigation.replace('Home');
-                    }}
-                  />
-                )}
-              </Stack.Screen>
-              <Stack.Screen
-                name="Presentation"
-                options={{
-                  headerShown: false,
-                }}
-                component={Presentation}
-              />
+                <Stack.Screen
+                  name="Download"
+                  options={{
+                    headerShown: false,
+                  }}
+                >
+                  {({ navigation }) => (
+                    <Download
+                      onDownloadComplete={() => {
+                        console.log('✅ Model ready, going to Home...');
+                        navigation.replace('Home');
+                      }}
+                    />
+                  )}
+                </Stack.Screen>
+                <Stack.Screen
+                  name="Presentation"
+                  options={{
+                    headerShown: false,
+                  }}
+                  component={Presentation}
+                />
 
-              <Stack.Screen
-                name="Home"
-                options={{
-                  headerShown: false,
-                }}
-                component={Home}
-              />
-              <Stack.Screen
-                name="Signin"
-                options={{
-                  headerShown: false,
-                }}
-                component={GoogleAuthScreen}
-              />
-              <Stack.Screen
-                name="History"
-                options={{
-                  headerShown: false,
-                }}
-                component={History}
-              />
-              <Stack.Screen name="Chat" component={Chat} />
-              <Stack.Screen
-                name="About"
-                component={Abuot}
-                options={{
-                  contentStyle: { backgroundColor: '#0f172a' },
-                  headerStyle: { backgroundColor: '#1e293b' },
-                }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </ModelProvider>
+                <Stack.Screen
+                  name="Home"
+                  options={{
+                    headerShown: false,
+                  }}
+                  component={Home}
+                />
+                <Stack.Screen
+                  name="Signin"
+                  options={{
+                    headerShown: false,
+                  }}
+                  component={GoogleAuthScreen}
+                />
+                <Stack.Screen
+                  name="History"
+                  options={{
+                    headerShown: false,
+                  }}
+                  component={History}
+                />
+                <Stack.Screen name="Chat" component={Chat} />
+                <Stack.Screen
+                  name="About"
+                  component={Abuot}
+                  options={{
+                    contentStyle: { backgroundColor: '#0f172a' },
+                    headerStyle: { backgroundColor: '#1e293b' },
+                  }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </ModelProvider>
+        </AdsProvider>
+        {/* ← ekle */}
       </Provider>
     </>
   );

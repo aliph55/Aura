@@ -238,7 +238,6 @@ export const showRewardedAd = () => {
     }
 
     if (!isInitialized) {
-      //  Alert.alert('Uyarı', 'Reklam sistemi henüz hazır değil.');
       return reject(new Error('Ads not initialized'));
     }
 
@@ -252,8 +251,8 @@ export const showRewardedAd = () => {
       };
 
       try {
-        // console.log('📺 Rewarded gösteriliyor...');
-        //  await rewarded.show();
+        console.log('📺 Rewarded gösteriliyor...');
+        await rewarded.show(); // ← YORUM KALDIRILDI
       } catch (error) {
         console.error('❌ Rewarded gösterme hatası:', error);
         rewardCallback = null;
@@ -261,7 +260,6 @@ export const showRewardedAd = () => {
       }
     } else {
       console.log('⚠️ Rewarded henüz hazır değil, yükleniyor...');
-      //  Alert.alert('Uyarı', 'Ödüllü reklam henüz yüklenmedi. Lütfen bekleyin.');
       if (rewarded) rewarded.load();
       reject(new Error('Ad not loaded'));
     }

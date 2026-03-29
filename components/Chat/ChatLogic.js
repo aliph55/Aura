@@ -2,16 +2,22 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as ort from 'onnxruntime-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { showRewardedAd } from '../adsService';
+import { showRewardedAd } from '../../components/adsService';
 import { useModel } from '../../contexts/ModelContext';
 
-const SYSTEM_PROMPT = `You are a helpful multilingual assistant. Always respond in the same language as the user. If the user writes in Turkish, respond in Turkish. If in English, respond in English, and so on. Be concise and helpful.`;
+const SYSTEM_PROMPT = `You are Aura, an AI assistant. The user is a human talking to you.
+IMPORTANT RULES:
+- You are the ASSISTANT, not the user
+- Never say "my name is [user's name]"
+- Never repeat what the user said as if it's your own statement
+- Keep responses short and helpful
+- Respond in the same language as the user`;
 
 const NUM_LAYERS = 24;
 const NUM_KV_HEADS = 2;
 const HEAD_DIM = 64;
 const TIMER_SECONDS = 420;
-const MAX_HISTORY = 2;
+const MAX_HISTORY = 5;
 
 const getMaxTokens = userMessage => {
   const len = userMessage.trim().length;
@@ -41,8 +47,95 @@ const createEmptyPastKV = () => {
 const disposePastKV = pastKV => {
   if (!pastKV) return;
   try {
-    Object.values(pastKV).forEach(tensor => tensor?.dispose?.());
+    Object.values(pastKV).forEach(t => t?.dispose?.());
   } catch (e) {}
+};
+
+// --- MODULE-LEVEL REUSABLE BUFFERS -------------------------------------------
+// topK <= 64 oldugu surece gecerli; her token'da allocation yok.
+const _HEAP_CAPACITY = 64;
+const _hs = new Float32Array(_HEAP_CAPACITY); // heap scores
+const _hi = new Int32Array(_HEAP_CAPACITY); // heap indices
+const _ev = new Float32Array(_HEAP_CAPACITY); // exp values (softmax)
+
+// Min-heap siftDown
+const _siftDown = (size, pos) => {
+  while (true) {
+    let smallest = pos;
+    const l = (pos << 1) | 1;
+    const r = l + 1;
+    if (l < size && _hs[l] < _hs[smallest]) smallest = l;
+    if (r < size && _hs[r] < _hs[smallest]) smallest = r;
+    if (smallest === pos) break;
+    let tmp = _hs[pos];
+    _hs[pos] = _hs[smallest];
+    _hs[smallest] = tmp;
+    let ti = _hi[pos];
+    _hi[pos] = _hi[smallest];
+    _hi[smallest] = ti;
+    pos = smallest;
+  }
+};
+
+// --- FAST SAMPLING: O(vocab * log k) min-heap --------------------------------
+// Onceki: O(vocab * topK) linear scan ~6M op; bu: ~800k op (~7.5x daha hizli)
+const fastSampleToken = (
+  logitsData,
+  offset,
+  vocabSize,
+  temperature = 0.4,
+  topK = 40,
+) => {
+  const k = Math.min(topK, _HEAP_CAPACITY, vocabSize);
+
+  let maxVal = logitsData[offset];
+  for (let i = 1; i < vocabSize; i++) {
+    if (logitsData[offset + i] > maxVal) maxVal = logitsData[offset + i];
+  }
+  const invTemp = 1.0 / temperature;
+
+  // Ilk k elemani yukle, Floyd heapify: O(k)
+  for (let i = 0; i < k; i++) {
+    _hs[i] = (logitsData[offset + i] - maxVal) * invTemp;
+    _hi[i] = i;
+  }
+  for (let i = (k >> 1) - 1; i >= 0; i--) _siftDown(k, i);
+
+  // Kalan elemanlari filtrele: O((vocab-k) * log k)
+  for (let i = k; i < vocabSize; i++) {
+    const score = (logitsData[offset + i] - maxVal) * invTemp;
+    if (score > _hs[0]) {
+      _hs[0] = score;
+      _hi[0] = i;
+      _siftDown(k, 0);
+    }
+  }
+
+  // Softmax sadece top-k uzerinde
+  let sum = 0.0;
+  for (let i = 0; i < k; i++) {
+    const e = Math.exp(_hs[i]);
+    _ev[i] = e;
+    sum += e;
+  }
+
+  // Weighted sample
+  let rand = Math.random() * sum;
+  for (let i = 0; i < k; i++) {
+    rand -= _ev[i];
+    if (rand <= 0) return _hi[i];
+  }
+
+  // Fallback: en yuksek score
+  let bestIdx = _hi[0],
+    bestScore = _hs[0];
+  for (let i = 1; i < k; i++) {
+    if (_hs[i] > bestScore) {
+      bestScore = _hs[i];
+      bestIdx = _hi[i];
+    }
+  }
+  return bestIdx;
 };
 
 export const useChatLogic = ({ route, navigation }) => {
@@ -61,12 +154,11 @@ export const useChatLogic = ({ route, navigation }) => {
   const [seconds, setSeconds] = useState(TIMER_SECONDS);
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const scrollViewRef = useRef(null);
   const saveTimeoutRef = useRef(null);
   const historyRef = useRef([]);
-
-  // ─── Decode ──────────────────────────────────────────────────────────────────
 
   const decode = useCallback(
     tokenIds => {
@@ -76,118 +168,91 @@ export const useChatLogic = ({ route, navigation }) => {
     [tokenizerRef],
   );
 
-  // ─── Token Sampling ──────────────────────────────────────────────────────────
-
-  const sampleToken = (logits, temperature = 0.3, topP = 0.85) => {
-    const scaled = logits.map(l => l / temperature);
-
-    let maxVal = scaled[0];
-    for (let i = 1; i < scaled.length; i++) {
-      if (scaled[i] > maxVal) maxVal = scaled[i];
-    }
-
-    const expVals = scaled.map(l => Math.exp(l - maxVal));
-    let sum = 0;
-    for (let i = 0; i < expVals.length; i++) sum += expVals[i];
-    const probs = expVals.map(e => e / sum);
-
-    const sorted = probs.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
-
-    let cumSum = 0;
-    const nucleus = [];
-    for (const item of sorted) {
-      nucleus.push(item);
-      cumSum += item.p;
-      if (cumSum >= topP) break;
-    }
-
-    const nucleusSum = nucleus.reduce((s, item) => s + item.p, 0);
-    let rand = Math.random() * nucleusSum;
-    for (const item of nucleus) {
-      rand -= item.p;
-      if (rand <= 0) return item.i;
-    }
-    return nucleus[0].i;
-  };
-
-  // ─── Text Generation ─────────────────────────────────────────────────────────
+  // --- Text Generation --------------------------------------------------------
 
   const generateResponse = useCallback(
     async userMessage => {
       if (!sessionRef?.current) throw new Error('Model not loaded');
       if (!tokenizerRef?.current) throw new Error('Tokenizer not loaded');
 
-      const limitedHistory = historyRef.current.slice(-MAX_HISTORY);
       const inputIds = tokenizerRef.current.encodeChat(
         SYSTEM_PROMPT,
         userMessage,
-        limitedHistory,
+        historyRef.current.slice(-MAX_HISTORY),
       );
 
       const seqLen = inputIds.length;
       const maxTokens = getMaxTokens(userMessage);
-      console.log('📝 Prompt:', seqLen, 'tokens | Max new:', maxTokens);
 
-      let currentInputIds = new BigInt64Array(inputIds.map(BigInt));
-      let attentionMask = new BigInt64Array(seqLen).fill(1n);
-      let positionIds = new BigInt64Array(
-        Array.from({ length: seqLen }, (_, i) => BigInt(i)),
-      );
+      // BigInt donusumu: map() ara array'i olmadan
+      const initialInputIds = new BigInt64Array(seqLen);
+      for (let i = 0; i < seqLen; i++) initialInputIds[i] = BigInt(inputIds[i]);
+
+      const initialPositionIds = new BigInt64Array(seqLen);
+      for (let i = 0; i < seqLen; i++) initialPositionIds[i] = BigInt(i);
+
       let pastKV = createEmptyPastKV();
-      let pastLen = 0;
 
       const generatedIds = [];
       let fullText = '';
       setStreamingText('');
       setIsStreaming(true);
 
+      const singleInput = new BigInt64Array(1);
+      const singlePos = new BigInt64Array(1);
+
       try {
         for (let step = 0; step < maxTokens; step++) {
+          const isFirst = step === 0;
+
+          // maskLen: step 0 -> seqLen, step 1 -> seqLen+1, step n -> seqLen+n
+          //
+          // NOT: ONNX Runtime native bridge, TypedArray subarray/view'ini degil
+          // tamponun gercek .byteLength'ini okur. Bu yuzden her adimda yeni
+          // BigInt64Array zorunlu. Model inference'a gore ihmal edilebilir maliyet.
+          const maskLen = seqLen + step;
+          const maskData = new BigInt64Array(maskLen).fill(1n);
+
           const feeds = {
-            input_ids: new ort.Tensor('int64', currentInputIds, [
-              1,
-              currentInputIds.length,
-            ]),
-            attention_mask: new ort.Tensor('int64', attentionMask, [
-              1,
-              attentionMask.length,
-            ]),
-            position_ids: new ort.Tensor('int64', positionIds, [
-              1,
-              positionIds.length,
-            ]),
+            input_ids: new ort.Tensor(
+              'int64',
+              isFirst ? initialInputIds : singleInput,
+              [1, isFirst ? seqLen : 1],
+            ),
+            attention_mask: new ort.Tensor('int64', maskData, [1, maskLen]),
+            position_ids: new ort.Tensor(
+              'int64',
+              isFirst ? initialPositionIds : singlePos,
+              [1, isFirst ? seqLen : 1],
+            ),
             ...pastKV,
           };
 
           const results = await sessionRef.current.run(feeds);
           disposePastKV(pastKV);
+          pastKV = null;
 
-          const logits = results.logits.data;
+          const logitsData = results.logits.data;
           const vocabSize = results.logits.dims[2];
-          const lastLogits = Array.from(
-            logits.slice(logits.length - vocabSize),
-          );
+          const offset = logitsData.length - vocabSize;
 
-          const nextTokenId = sampleToken(lastLogits);
+          const nextTokenId = fastSampleToken(logitsData, offset, vocabSize);
 
-          if (nextTokenId === 151645 || nextTokenId === 151643) {
-            console.log('✅ EOS at step', step);
-            break;
-          }
+          if (nextTokenId === 151645 || nextTokenId === 151643) break;
 
           generatedIds.push(nextTokenId);
 
-          // Her 3 token'da UI güncelle
-          if (step % 3 === 0) {
+          // Her 8 token'da UI guncelle (eskisi 4) -- React render yariya iner
+          if (step % 8 === 0) {
             fullText = decode(generatedIds);
             setStreamingText(fullText);
-            await new Promise(r => setTimeout(r, 20));
+            await new Promise(r => setTimeout(r, 0));
           }
 
-          currentInputIds = new BigInt64Array([BigInt(nextTokenId)]);
-          pastLen += step === 0 ? seqLen : 1;
-          attentionMask = new BigInt64Array(pastLen + 1).fill(1n);
-          positionIds = new BigInt64Array([BigInt(pastLen)]);
+          // Sonraki adim icin single-element arrays'i guncelle
+          singleInput[0] = BigInt(nextTokenId);
+          // step 0'dan sonra: konum = seqLen; step 1'den sonra: seqLen+1; vb.
+          singlePos[0] = BigInt(seqLen + step);
 
           const newPastKV = {};
           for (let i = 0; i < NUM_LAYERS; i++) {
@@ -198,24 +263,22 @@ export const useChatLogic = ({ route, navigation }) => {
           pastKV = newPastKV;
         }
 
-        // Son decode
-        disposePastKV(pastKV);
-        pastKV = null;
         if (generatedIds.length > 0) {
           fullText = decode(generatedIds);
           setStreamingText(fullText);
         }
       } finally {
+        disposePastKV(pastKV);
+        pastKV = null;
         setIsStreaming(false);
       }
 
-      console.log('✅ Response:', fullText);
       return fullText || 'No response generated.';
     },
     [sessionRef, tokenizerRef, decode],
   );
 
-  // ─── Storage ─────────────────────────────────────────────────────────────────
+  // --- Storage ----------------------------------------------------------------
 
   const saveGroups = useCallback(async groupsToSave => {
     try {
@@ -277,7 +340,7 @@ export const useChatLogic = ({ route, navigation }) => {
     }
   }, [groupId, chatId, saveGroups]);
 
-  // ─── Chat Actions ─────────────────────────────────────────────────────────────
+  // --- Chat Actions -----------------------------------------------------------
 
   const sendMessage = useCallback(async () => {
     if (!inputText.trim() || isStreaming) return;
@@ -307,18 +370,15 @@ export const useChatLogic = ({ route, navigation }) => {
 
     try {
       const response = await generateResponse(userText);
-
       const aiMessage = {
         id: `${Date.now()}-ai`,
         text: response,
         sender: 'ai',
         timestamp: new Date().toISOString(),
       };
-
       const finalMessages = [...newMessages, aiMessage];
       setMessages(finalMessages);
       setStreamingText('');
-
       historyRef.current = [...historyRef.current, [userText, response]].slice(
         -MAX_HISTORY,
       );
@@ -344,7 +404,6 @@ export const useChatLogic = ({ route, navigation }) => {
       debouncedSave(updatedGroups);
     } catch (e) {
       console.error('Generation error:', e);
-      setIsStreaming(false);
       Alert.alert('Error', e.message);
     }
   }, [
@@ -421,42 +480,50 @@ export const useChatLogic = ({ route, navigation }) => {
     saveGroups(updatedGroups);
   }, [groups, currentGroupId, newGroupName, saveGroups]);
 
-  // ─── Timer ────────────────────────────────────────────────────────────────────
-
-  const formatTime = () => {
+  const formatTime = useCallback(() => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
+  }, [seconds]);
+
+  // --- Effects ----------------------------------------------------------------
 
   useEffect(() => {
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      setIsFocused(true);
+      loadGroups();
+    });
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      setIsFocused(false);
+      setSeconds(TIMER_SECONDS);
+    });
+    return () => {
+      unsubscribeFocus();
+      unsubscribeBlur();
+    };
+  }, [navigation, loadGroups]);
+
+  useEffect(() => {
+    if (!isFocused) return;
     const id = setInterval(() => {
       setSeconds(prev => {
         if (prev <= 1) {
-          showRewardedAd();
+          showRewardedAd().catch(e => console.log('Ad skipped:', e.message));
           return TIMER_SECONDS;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, []);
-
-  // ─── Effects ─────────────────────────────────────────────────────────────────
+  }, [isFocused]);
 
   useEffect(() => {
     loadGroups();
-  }, [route.params?.groupId, route.params?.chatId]);
-
-  useEffect(() => {
-    return navigation.addListener('focus', loadGroups);
-  }, [navigation, loadGroups]);
+  }, [route.params?.groupId, route.params?.chatId]); // eslint-disable-line
 
   useEffect(() => {
     return () => clearTimeout(saveTimeoutRef.current);
   }, []);
-
-  // ─── Return ───────────────────────────────────────────────────────────────────
 
   return {
     messages,
@@ -481,5 +548,6 @@ export const useChatLogic = ({ route, navigation }) => {
     startNewGroup,
     updateGroupName,
     formatTime,
+    isFocused,
   };
 };

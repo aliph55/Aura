@@ -28,7 +28,7 @@ const ChatHeader = ({
     <View style={styles.header}>
       {/* Sol taraf - Chat başlığı ile zaman ve uyarı yan yana */}
       <View style={styles.headerLeft}>
-        <Text style={styles.headerTitle}>{title || 'Chat'}</Text>
+        <Text style={styles.headerTitle}>{title.slice(0, 8) || 'Chat'}</Text>
         <Text style={styles.headerSubtitle}>{timeString}</Text>
         {showAdWarning && (
           <View style={styles.adWarningBadge}>

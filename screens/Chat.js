@@ -51,7 +51,7 @@ const Chat = ({ route, navigation }) => {
     // Compute what to show – fallback chain
     let displayTitle = title;
     if (!displayTitle && messages.length > 0) {
-      displayTitle = messages[0].text.slice(0, 7); // İlk mesajın ilk 7 karakteri
+      displayTitle = messages[0]?.text?.slice(0, 7); // İlk mesajın ilk 7 karakteri
     } else if (!displayTitle) {
       displayTitle = 'New Chat';
     }
@@ -66,7 +66,7 @@ const Chat = ({ route, navigation }) => {
             <MaterialIcons name="arrow-back" size={28} color="#e2e8f0" />
           </TouchableOpacity>
 
-          <Text style={styles.navigationTitle}>{displayTitle}</Text>
+          <Text style={styles.navigationTitle}>{displayTitle.slice(0, 8)}</Text>
 
           <Text style={styles.navigationTime}>{timeString}</Text>
 
