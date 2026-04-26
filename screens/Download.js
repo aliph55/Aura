@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,90 +16,135 @@ import { useModel } from '../contexts/ModelContext';
 
 const { width } = Dimensions.get('window');
 
+// ✅ Gemma 3 1B-IT Q4_K_M (ggml-org resmi)
 const MODEL_URL =
-  'https://media.githubusercontent.com/media/aliph55/qwen-model/refs/heads/master/qwen-int8.onnx';
-const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/model.onnx`;
-const EXPECTED_MODEL_SIZE = 649048012;
-const MIN_VALID_SIZE = 600000000;
+  'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf';
+
+const HF_TOKEN = 'hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'; // ← BURAYA KENDİ TOKEN'INI YAZ
+
+const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/gemma-3-1b-it-Q4_K_M.gguf`;
+
+const EXPECTED_MODEL_SIZE = 806_000_000; // ~806 MB
+const MIN_VALID_SIZE = Math.floor(EXPECTED_MODEL_SIZE * 0.85); // ~685 MB
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadedMB, setDownloadedMB] = useState(0);
+  const [totalMB, setTotalMB] = useState(0);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('Checking model...');
+
   const { loadModel, loadVocab } = useModel();
+  const downloadTaskRef = useRef(null);
 
   const downloadModel = async () => {
     try {
       setIsDownloading(true);
       setError(null);
+      setDownloadProgress(0);
+      setDownloadedMB(0);
+      setTotalMB(0);
       setStatusMessage('Checking model...');
+
+      // Mevcut dosyayı kontrol et
       const exists = await RNFS.exists(MODEL_LOCAL_PATH);
       if (exists) {
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
         if (stat.size >= MIN_VALID_SIZE) {
           setStatusMessage('Model is ready!');
-          await loadModel();
-          await loadVocab();
-          if (typeof onDownloadComplete === 'function')
-            onDownloadComplete(MODEL_LOCAL_PATH);
-          else setError('Application configuration error.');
+          await loadModel(MODEL_LOCAL_PATH);
+          await loadVocab?.();
+          onDownloadComplete?.(MODEL_LOCAL_PATH);
           setIsDownloading(false);
           return;
         } else {
+          console.log('🗑️ Incomplete file found, deleting...');
           await RNFS.unlink(MODEL_LOCAL_PATH);
         }
       }
+
       setStatusMessage('Downloading model...');
-      const downloadOptions = {
+
+      const downloadTask = RNFS.downloadFile({
         fromUrl: MODEL_URL,
         toFile: MODEL_LOCAL_PATH,
         background: false,
         progressDivider: 1,
-        connectionTimeout: 30000,
-        readTimeout: 30000,
-        begin: () => {},
+        connectionTimeout: 30_000,
+        readTimeout: 60_000,
+        headers: {
+          Authorization: `Bearer ${HF_TOKEN}`,
+        },
+        begin: res => {
+          const total =
+            res.contentLength > 0 ? res.contentLength : EXPECTED_MODEL_SIZE;
+          setTotalMB(Math.round(total / 1_000_000));
+        },
         progress: res => {
-          const p =
-            res.contentLength > 0
-              ? (res.bytesWritten / res.contentLength) * 100
-              : (res.bytesWritten / EXPECTED_MODEL_SIZE) * 100;
+          const total =
+            res.contentLength > 0 ? res.contentLength : EXPECTED_MODEL_SIZE;
+          const p = Math.min((res.bytesWritten / total) * 100, 100);
           setDownloadProgress(p);
+          setDownloadedMB(Math.round(res.bytesWritten / 1_000_000));
           setStatusMessage(`Downloading: ${p.toFixed(0)}%`);
         },
-      };
-      const result = await RNFS.downloadFile(downloadOptions).promise;
-      if (result.statusCode === 200) {
-        const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-        if (stat.size < MIN_VALID_SIZE) {
-          await RNFS.unlink(MODEL_LOCAL_PATH);
-          throw new Error('Downloaded file is incomplete!');
-        }
-        setStatusMessage('Model downloaded successfully!');
-        await loadModel();
-        await loadVocab();
-        if (typeof onDownloadComplete === 'function')
-          onDownloadComplete(MODEL_LOCAL_PATH);
-        else setError('Application configuration error.');
-      } else {
-        throw new Error(`Download error, status code: ${result.statusCode}`);
+      });
+
+      downloadTaskRef.current = downloadTask;
+      const result = await downloadTask.promise;
+
+      // Authentication hatası kontrolü
+      if (result.statusCode === 401 || result.statusCode === 403) {
+        throw new Error(
+          'Authentication failed!\n\nGemma modeli gated (korumalı). Lütfen:\n1. huggingface.co adresine gir\n2. Gemma model sayfasında lisansı kabul et\n3. https://huggingface.co/settings/tokens adresinden token oluştur\n4. Tokenı Download.js dosyasına yapıştır',
+        );
       }
+
+      if (result.statusCode !== 200) {
+        throw new Error(`Download failed. Status: ${result.statusCode}`);
+      }
+
+      // İndirilen dosyanın boyut kontrolü
+      const stat = await RNFS.stat(MODEL_LOCAL_PATH);
+      if (stat.size < MIN_VALID_SIZE) {
+        await RNFS.unlink(MODEL_LOCAL_PATH);
+        throw new Error(
+          `Downloaded file too small (${Math.round(stat.size / 1_000_000)} MB).`,
+        );
+      }
+
+      setStatusMessage('Loading model...');
+      await loadModel(MODEL_LOCAL_PATH);
+      await loadVocab?.();
+      setStatusMessage('Model ready!');
+      onDownloadComplete?.(MODEL_LOCAL_PATH);
     } catch (err) {
+      if (err?.message?.includes('cancelled')) return;
+      console.error('Download error:', err);
       setError(err.message);
       setStatusMessage('Error occurred');
       Alert.alert('Model Download Error', err.message);
     } finally {
+      downloadTaskRef.current = null;
       setIsDownloading(false);
     }
   };
 
+  // Component yüklendiğinde otomatik indir
   useEffect(() => {
     downloadModel();
+
+    // Component kapatılırsa indirmeyi iptal et
+    return () => {
+      downloadTaskRef.current?.stop?.();
+    };
   }, []);
 
   const handleRetry = () => {
     setError(null);
     setDownloadProgress(0);
+    setDownloadedMB(0);
     downloadModel();
   };
 
@@ -107,17 +152,20 @@ const Download = ({ onDownloadComplete }) => {
     try {
       setIsDownloading(true);
       setStatusMessage('Loading from assets...');
-      const exists = await RNFS.existsAssets('model.onnx');
-      if (!exists) throw new Error('Model file not found in assets folder.');
-      await RNFS.copyFileAssets('model.onnx', MODEL_LOCAL_PATH);
+
+      const exists = await RNFS.existsAssets('gemma-3-1b-it-Q4_K_M.gguf');
+      if (!exists) throw new Error('Model not found in assets folder.');
+
+      await RNFS.copyFileAssets('gemma-3-1b-it-Q4_K_M.gguf', MODEL_LOCAL_PATH);
+
       const stat = await RNFS.stat(MODEL_LOCAL_PATH);
       if (stat.size < MIN_VALID_SIZE)
-        throw new Error('Model file in assets is too small!');
-      setStatusMessage('Model loaded from assets!');
-      await loadModel();
-      await loadVocab();
-      if (typeof onDownloadComplete === 'function')
-        onDownloadComplete(MODEL_LOCAL_PATH);
+        throw new Error('Asset model file is too small!');
+
+      setStatusMessage('Loading model...');
+      await loadModel(MODEL_LOCAL_PATH);
+      await loadVocab?.();
+      onDownloadComplete?.(MODEL_LOCAL_PATH);
     } catch (err) {
       setError(err.message);
       Alert.alert('Asset Load Error', err.message);
@@ -156,11 +204,6 @@ const Download = ({ onDownloadComplete }) => {
               end={{ x: 1, y: 1 }}
               style={styles.iconGradient}
             >
-              <LinearGradient
-                colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.03)']}
-                style={StyleSheet.absoluteFillObject}
-                borderRadius={28}
-              />
               <MaterialIcons name="auto-awesome" size={52} color="#fff" />
             </LinearGradient>
             <View style={styles.iconRing1} />
@@ -179,6 +222,7 @@ const Download = ({ onDownloadComplete }) => {
                 <View style={styles.loaderGlow} />
               </View>
               <Text style={styles.statusText}>{statusMessage}</Text>
+
               {downloadProgress > 0 && (
                 <View style={styles.progressSection}>
                   <View style={styles.progressBarContainer}>
@@ -201,14 +245,15 @@ const Download = ({ onDownloadComplete }) => {
                       </Text>
                     </View>
                   </View>
+                  {totalMB > 0 && (
+                    <Text style={styles.mbText}>
+                      {downloadedMB} MB / {totalMB} MB
+                    </Text>
+                  )}
                 </View>
               )}
+
               <View style={styles.infoCard}>
-                <LinearGradient
-                  colors={['rgba(59,130,246,0.12)', 'rgba(59,130,246,0.04)']}
-                  style={StyleSheet.absoluteFillObject}
-                  borderRadius={20}
-                />
                 <View style={styles.infoHeader}>
                   <View style={styles.infoIconBox}>
                     <MaterialIcons
@@ -221,8 +266,8 @@ const Download = ({ onDownloadComplete }) => {
                 </View>
                 <View style={styles.infoDivider} />
                 <Text style={styles.infoText}>
-                  • Model download required on first use{'\n'}• File size: ~650
-                  MB{'\n'}• One-time process{'\n'}• May take a few minutes
+                  • Model: Gemma 3 1B-IT (Q4_K_M){'\n'}• File size: ~806 MB
+                  {'\n'}• One-time download{'\n'}• May take a few minutes
                 </Text>
               </View>
             </View>
@@ -240,33 +285,17 @@ const Download = ({ onDownloadComplete }) => {
               </View>
               <Text style={styles.errorTitle}>Download Failed</Text>
               <View style={styles.errorMessageBox}>
-                <LinearGradient
-                  colors={['rgba(239,68,68,0.10)', 'rgba(239,68,68,0.04)']}
-                  style={StyleSheet.absoluteFillObject}
-                  borderRadius={18}
-                />
                 <Text style={styles.errorMessage}>{error}</Text>
               </View>
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={handleRetry}
-                  activeOpacity={0.85}
                 >
                   <LinearGradient
                     colors={['#6366f1', '#8b5cf6']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
                     style={styles.primaryButtonGradient}
                   >
-                    <LinearGradient
-                      colors={[
-                        'rgba(255,255,255,0.15)',
-                        'rgba(255,255,255,0.03)',
-                      ]}
-                      style={StyleSheet.absoluteFillObject}
-                      borderRadius={16}
-                    />
                     <MaterialIcons
                       name="refresh"
                       size={22}
@@ -276,19 +305,11 @@ const Download = ({ onDownloadComplete }) => {
                     <Text style={styles.buttonText}>Try Again</Text>
                   </LinearGradient>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   onPress={handleSkip}
-                  activeOpacity={0.85}
                 >
-                  <LinearGradient
-                    colors={[
-                      'rgba(255,255,255,0.08)',
-                      'rgba(255,255,255,0.03)',
-                    ]}
-                    style={StyleSheet.absoluteFillObject}
-                    borderRadius={16}
-                  />
                   <MaterialIcons
                     name="folder-open"
                     size={22}
@@ -319,6 +340,7 @@ const Download = ({ onDownloadComplete }) => {
 export default Download;
 
 const styles = StyleSheet.create({
+  // ... (stiller aynı kalıyor, aşağıda tamamı var)
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -377,7 +399,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 3,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.5)',
@@ -389,7 +410,6 @@ const styles = StyleSheet.create({
     borderRadius: 66,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.2)',
-    zIndex: 2,
   },
   iconRing2: {
     position: 'absolute',
@@ -398,7 +418,6 @@ const styles = StyleSheet.create({
     borderRadius: 79,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.08)',
-    zIndex: 1,
   },
   title: {
     fontSize: 30,
@@ -478,6 +497,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   progressBadgeText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  mbText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 10,
+  },
   infoCard: {
     borderRadius: 20,
     padding: 20,
@@ -580,7 +606,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
   buttonText: {
     color: '#fff',
@@ -598,7 +623,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   secondaryButtonText: {
     color: 'rgba(255,255,255,0.8)',

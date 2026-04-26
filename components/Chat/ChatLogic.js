@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as ort from 'onnxruntime-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { showRewardedAd } from '../../components/adsService';
@@ -13,134 +12,20 @@ IMPORTANT RULES:
 - Keep responses short and helpful
 - Respond in the same language as the user`;
 
-const NUM_LAYERS = 24;
-const NUM_KV_HEADS = 2;
-const HEAD_DIM = 64;
 const TIMER_SECONDS = 420;
-const MAX_HISTORY = 5;
+const MAX_HISTORY = 10;
 
 const getMaxTokens = userMessage => {
   const len = userMessage.trim().length;
-  if (len < 20) return 80;
-  if (len < 60) return 200;
-  if (len < 150) return 400;
-  return 600;
-};
-
-const createEmptyPastKV = () => {
-  const pastKV = {};
-  for (let i = 0; i < NUM_LAYERS; i++) {
-    pastKV[`past_key_values.${i}.key`] = new ort.Tensor(
-      'float32',
-      new Float32Array(0),
-      [1, NUM_KV_HEADS, 0, HEAD_DIM],
-    );
-    pastKV[`past_key_values.${i}.value`] = new ort.Tensor(
-      'float32',
-      new Float32Array(0),
-      [1, NUM_KV_HEADS, 0, HEAD_DIM],
-    );
-  }
-  return pastKV;
-};
-
-const disposePastKV = pastKV => {
-  if (!pastKV) return;
-  try {
-    Object.values(pastKV).forEach(t => t?.dispose?.());
-  } catch (e) {}
-};
-
-// --- MODULE-LEVEL REUSABLE BUFFERS -------------------------------------------
-// topK <= 64 oldugu surece gecerli; her token'da allocation yok.
-const _HEAP_CAPACITY = 64;
-const _hs = new Float32Array(_HEAP_CAPACITY); // heap scores
-const _hi = new Int32Array(_HEAP_CAPACITY); // heap indices
-const _ev = new Float32Array(_HEAP_CAPACITY); // exp values (softmax)
-
-// Min-heap siftDown
-const _siftDown = (size, pos) => {
-  while (true) {
-    let smallest = pos;
-    const l = (pos << 1) | 1;
-    const r = l + 1;
-    if (l < size && _hs[l] < _hs[smallest]) smallest = l;
-    if (r < size && _hs[r] < _hs[smallest]) smallest = r;
-    if (smallest === pos) break;
-    let tmp = _hs[pos];
-    _hs[pos] = _hs[smallest];
-    _hs[smallest] = tmp;
-    let ti = _hi[pos];
-    _hi[pos] = _hi[smallest];
-    _hi[smallest] = ti;
-    pos = smallest;
-  }
-};
-
-// --- FAST SAMPLING: O(vocab * log k) min-heap --------------------------------
-// Onceki: O(vocab * topK) linear scan ~6M op; bu: ~800k op (~7.5x daha hizli)
-const fastSampleToken = (
-  logitsData,
-  offset,
-  vocabSize,
-  temperature = 0.4,
-  topK = 40,
-) => {
-  const k = Math.min(topK, _HEAP_CAPACITY, vocabSize);
-
-  let maxVal = logitsData[offset];
-  for (let i = 1; i < vocabSize; i++) {
-    if (logitsData[offset + i] > maxVal) maxVal = logitsData[offset + i];
-  }
-  const invTemp = 1.0 / temperature;
-
-  // Ilk k elemani yukle, Floyd heapify: O(k)
-  for (let i = 0; i < k; i++) {
-    _hs[i] = (logitsData[offset + i] - maxVal) * invTemp;
-    _hi[i] = i;
-  }
-  for (let i = (k >> 1) - 1; i >= 0; i--) _siftDown(k, i);
-
-  // Kalan elemanlari filtrele: O((vocab-k) * log k)
-  for (let i = k; i < vocabSize; i++) {
-    const score = (logitsData[offset + i] - maxVal) * invTemp;
-    if (score > _hs[0]) {
-      _hs[0] = score;
-      _hi[0] = i;
-      _siftDown(k, 0);
-    }
-  }
-
-  // Softmax sadece top-k uzerinde
-  let sum = 0.0;
-  for (let i = 0; i < k; i++) {
-    const e = Math.exp(_hs[i]);
-    _ev[i] = e;
-    sum += e;
-  }
-
-  // Weighted sample
-  let rand = Math.random() * sum;
-  for (let i = 0; i < k; i++) {
-    rand -= _ev[i];
-    if (rand <= 0) return _hi[i];
-  }
-
-  // Fallback: en yuksek score
-  let bestIdx = _hi[0],
-    bestScore = _hs[0];
-  for (let i = 1; i < k; i++) {
-    if (_hs[i] > bestScore) {
-      bestScore = _hs[i];
-      bestIdx = _hi[i];
-    }
-  }
-  return bestIdx;
+  if (len < 20) return 100;
+  if (len < 60) return 250;
+  if (len < 150) return 450;
+  return 650;
 };
 
 export const useChatLogic = ({ route, navigation }) => {
   const { groupId, chatId } = route.params || {};
-  const { sessionRef, tokenizerRef, modelLoaded } = useModel();
+  const { chat, stopGeneration, modelLoaded, isGenerating } = useModel();
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -159,126 +44,25 @@ export const useChatLogic = ({ route, navigation }) => {
   const scrollViewRef = useRef(null);
   const saveTimeoutRef = useRef(null);
   const historyRef = useRef([]);
+  const abortRef = useRef(false);
 
-  const decode = useCallback(
-    tokenIds => {
-      if (!tokenizerRef?.current) return '';
-      return tokenizerRef.current.decode(tokenIds);
-    },
-    [tokenizerRef],
-  );
+  // Stale closure önleme için ref'ler
+  const groupsRef = useRef(groups);
+  const currentGroupIdRef = useRef(currentGroupId);
+  const currentChatIdRef = useRef(currentChatId);
+  const titleRef = useRef(title);
+  const messagesRef = useRef(messages);
+  const isGeneratingRef = useRef(isGenerating);
 
-  // --- Text Generation --------------------------------------------------------
-
-  const generateResponse = useCallback(
-    async userMessage => {
-      if (!sessionRef?.current) throw new Error('Model not loaded');
-      if (!tokenizerRef?.current) throw new Error('Tokenizer not loaded');
-
-      const inputIds = tokenizerRef.current.encodeChat(
-        SYSTEM_PROMPT,
-        userMessage,
-        historyRef.current.slice(-MAX_HISTORY),
-      );
-
-      const seqLen = inputIds.length;
-      const maxTokens = getMaxTokens(userMessage);
-
-      // BigInt donusumu: map() ara array'i olmadan
-      const initialInputIds = new BigInt64Array(seqLen);
-      for (let i = 0; i < seqLen; i++) initialInputIds[i] = BigInt(inputIds[i]);
-
-      const initialPositionIds = new BigInt64Array(seqLen);
-      for (let i = 0; i < seqLen; i++) initialPositionIds[i] = BigInt(i);
-
-      let pastKV = createEmptyPastKV();
-
-      const generatedIds = [];
-      let fullText = '';
-      setStreamingText('');
-      setIsStreaming(true);
-
-      const singleInput = new BigInt64Array(1);
-      const singlePos = new BigInt64Array(1);
-
-      try {
-        for (let step = 0; step < maxTokens; step++) {
-          const isFirst = step === 0;
-
-          // maskLen: step 0 -> seqLen, step 1 -> seqLen+1, step n -> seqLen+n
-          //
-          // NOT: ONNX Runtime native bridge, TypedArray subarray/view'ini degil
-          // tamponun gercek .byteLength'ini okur. Bu yuzden her adimda yeni
-          // BigInt64Array zorunlu. Model inference'a gore ihmal edilebilir maliyet.
-          const maskLen = seqLen + step;
-          const maskData = new BigInt64Array(maskLen).fill(1n);
-
-          const feeds = {
-            input_ids: new ort.Tensor(
-              'int64',
-              isFirst ? initialInputIds : singleInput,
-              [1, isFirst ? seqLen : 1],
-            ),
-            attention_mask: new ort.Tensor('int64', maskData, [1, maskLen]),
-            position_ids: new ort.Tensor(
-              'int64',
-              isFirst ? initialPositionIds : singlePos,
-              [1, isFirst ? seqLen : 1],
-            ),
-            ...pastKV,
-          };
-
-          const results = await sessionRef.current.run(feeds);
-          disposePastKV(pastKV);
-          pastKV = null;
-
-          const logitsData = results.logits.data;
-          const vocabSize = results.logits.dims[2];
-          const offset = logitsData.length - vocabSize;
-
-          const nextTokenId = fastSampleToken(logitsData, offset, vocabSize);
-
-          if (nextTokenId === 151645 || nextTokenId === 151643) break;
-
-          generatedIds.push(nextTokenId);
-
-          // Her 8 token'da UI guncelle (eskisi 4) -- React render yariya iner
-          if (step % 8 === 0) {
-            fullText = decode(generatedIds);
-            setStreamingText(fullText);
-            await new Promise(r => setTimeout(r, 0));
-          }
-
-          // Sonraki adim icin single-element arrays'i guncelle
-          singleInput[0] = BigInt(nextTokenId);
-          // step 0'dan sonra: konum = seqLen; step 1'den sonra: seqLen+1; vb.
-          singlePos[0] = BigInt(seqLen + step);
-
-          const newPastKV = {};
-          for (let i = 0; i < NUM_LAYERS; i++) {
-            newPastKV[`past_key_values.${i}.key`] = results[`present.${i}.key`];
-            newPastKV[`past_key_values.${i}.value`] =
-              results[`present.${i}.value`];
-          }
-          pastKV = newPastKV;
-        }
-
-        if (generatedIds.length > 0) {
-          fullText = decode(generatedIds);
-          setStreamingText(fullText);
-        }
-      } finally {
-        disposePastKV(pastKV);
-        pastKV = null;
-        setIsStreaming(false);
-      }
-
-      return fullText || 'No response generated.';
-    },
-    [sessionRef, tokenizerRef, decode],
-  );
-
-  // --- Storage ----------------------------------------------------------------
+  // Ref'leri güncelle
+  useEffect(() => {
+    groupsRef.current = groups;
+    currentGroupIdRef.current = currentGroupId;
+    currentChatIdRef.current = currentChatId;
+    titleRef.current = title;
+    messagesRef.current = messages;
+    isGeneratingRef.current = isGenerating;
+  }, [groups, currentGroupId, currentChatId, title, messages, isGenerating]);
 
   const saveGroups = useCallback(async groupsToSave => {
     try {
@@ -296,6 +80,137 @@ export const useChatLogic = ({ route, navigation }) => {
     [saveGroups],
   );
 
+  // Mesaj üretimi
+  const generateResponse = useCallback(
+    async (userMessage, onToken) => {
+      abortRef.current = false;
+
+      const history = [
+        ...historyRef.current.slice(-(MAX_HISTORY * 2)),
+        { role: 'user', content: userMessage },
+      ];
+
+      return chat(
+        history,
+        SYSTEM_PROMPT,
+        token => {
+          if (!abortRef.current && onToken) onToken(token);
+        },
+        { n_predict: getMaxTokens(userMessage) },
+      );
+    },
+    [chat],
+  );
+
+  // Mesaj gönder
+  const sendMessage = useCallback(async () => {
+    const currentInput = inputText.trim();
+    if (!currentInput || isStreaming) return;
+    if (!modelLoaded) {
+      Alert.alert('Uyarı', 'Model henüz yükleniyor, lütfen bekleyin.');
+      return;
+    }
+
+    setInputText('');
+
+    const currentMessages = messagesRef.current;
+    const currentTitle = titleRef.current;
+    const currentGrpId = currentGroupIdRef.current;
+    const currentChtId = currentChatIdRef.current;
+    const currentGroups = groupsRef.current;
+
+    let newTitle = currentTitle;
+    if (!currentTitle && currentMessages.length === 0) {
+      newTitle = currentInput.slice(0, 30);
+      setTitle(newTitle);
+      titleRef.current = newTitle;
+    }
+
+    const userMessage = {
+      id: `${Date.now()}-user`,
+      text: currentInput,
+      sender: 'user',
+      timestamp: new Date().toISOString(),
+    };
+
+    const newMessages = [...currentMessages, userMessage];
+    setMessages(newMessages);
+    messagesRef.current = newMessages;
+    setIsStreaming(true);
+    setStreamingText('');
+
+    let accumulated = '';
+
+    try {
+      const response = await generateResponse(currentInput, token => {
+        accumulated += token;
+        setStreamingText(accumulated);
+        scrollViewRef.current?.scrollToEnd?.({ animated: false });
+      });
+
+      if (abortRef.current) return;
+
+      const finalText = response || accumulated || 'No response generated.';
+
+      const aiMessage = {
+        id: `${Date.now()}-ai`,
+        text: finalText,
+        sender: 'ai',
+        timestamp: new Date().toISOString(),
+      };
+
+      const finalMessages = [...newMessages, aiMessage];
+      setMessages(finalMessages);
+      messagesRef.current = finalMessages;
+      setStreamingText('');
+
+      historyRef.current = [
+        ...historyRef.current,
+        { role: 'user', content: currentInput },
+        { role: 'assistant', content: finalText },
+      ].slice(-(MAX_HISTORY * 2));
+
+      const updatedGroups = currentGroups.map(g =>
+        g.id === currentGrpId
+          ? {
+              ...g,
+              chats: g.chats.map(c =>
+                c.id === currentChtId
+                  ? {
+                      ...c,
+                      title: newTitle,
+                      messages: finalMessages,
+                      lastOpened: new Date().toISOString(),
+                    }
+                  : c,
+              ),
+            }
+          : g,
+      );
+
+      setGroups(updatedGroups);
+      groupsRef.current = updatedGroups;
+      debouncedSave(updatedGroups);
+    } catch (e) {
+      if (!abortRef.current) {
+        console.error('Generation error:', e);
+        Alert.alert('Hata', e.message);
+      }
+    } finally {
+      setIsStreaming(false);
+      setStreamingText('');
+    }
+  }, [inputText, isStreaming, modelLoaded, generateResponse, debouncedSave]);
+
+  // Durdur butonu
+  const stopStreaming = useCallback(() => {
+    abortRef.current = true;
+    stopGeneration();
+    setIsStreaming(false);
+    setStreamingText('');
+  }, [stopGeneration]);
+
+  // Grup ve chat yükleme
   const loadGroups = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem('groups');
@@ -308,6 +223,7 @@ export const useChatLogic = ({ route, navigation }) => {
           chats: [],
         };
         setGroups([defaultGroup]);
+        groupsRef.current = [defaultGroup];
         setCurrentGroupId(defaultGroup.id);
         setCurrentGroupName(defaultGroup.name);
         await saveGroups([defaultGroup]);
@@ -315,24 +231,37 @@ export const useChatLogic = ({ route, navigation }) => {
       }
 
       setGroups(parsed);
+      groupsRef.current = parsed;
 
       if (groupId && chatId) {
         const group = parsed.find(g => g.id === groupId);
-        const chat = group?.chats.find(c => c.id === chatId);
-        if (group && chat) {
+        const chatItem = group?.chats.find(c => c.id === chatId);
+        if (group && chatItem) {
           setCurrentGroupId(groupId);
           setCurrentGroupName(group.name);
           setCurrentChatId(chatId);
-          setMessages(chat.messages || []);
-          setTitle(chat.title || '');
-          historyRef.current = (chat.messages || [])
-            .reduce((acc, m, i, arr) => {
-              if (m.sender === 'user' && arr[i + 1]?.sender === 'ai') {
-                acc.push([m.text, arr[i + 1].text]);
-              }
-              return acc;
-            }, [])
-            .slice(-MAX_HISTORY);
+
+          const loadedMessages = chatItem.messages || [];
+          setMessages(loadedMessages);
+          messagesRef.current = loadedMessages;
+          setTitle(chatItem.title || '');
+          titleRef.current = chatItem.title || '';
+
+          // History oluştur
+          const history = [];
+          for (let i = 0; i < loadedMessages.length - 1; i++) {
+            if (
+              loadedMessages[i].sender === 'user' &&
+              loadedMessages[i + 1]?.sender === 'ai'
+            ) {
+              history.push({ role: 'user', content: loadedMessages[i].text });
+              history.push({
+                role: 'assistant',
+                content: loadedMessages[i + 1].text,
+              });
+            }
+          }
+          historyRef.current = history.slice(-(MAX_HISTORY * 2));
         }
       }
     } catch (e) {
@@ -340,87 +269,10 @@ export const useChatLogic = ({ route, navigation }) => {
     }
   }, [groupId, chatId, saveGroups]);
 
-  // --- Chat Actions -----------------------------------------------------------
-
-  const sendMessage = useCallback(async () => {
-    if (!inputText.trim() || isStreaming) return;
-    if (!modelLoaded) {
-      Alert.alert('Warning', 'Model is still loading, please wait.');
-      return;
-    }
-
-    const userText = inputText.trim();
-    setInputText('');
-
-    let newTitle = title;
-    if (!title && messages.length === 0) {
-      newTitle = userText.slice(0, 30);
-      setTitle(newTitle);
-    }
-
-    const userMessage = {
-      id: `${Date.now()}-user`,
-      text: userText,
-      sender: 'user',
-      timestamp: new Date().toISOString(),
-    };
-
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-
-    try {
-      const response = await generateResponse(userText);
-      const aiMessage = {
-        id: `${Date.now()}-ai`,
-        text: response,
-        sender: 'ai',
-        timestamp: new Date().toISOString(),
-      };
-      const finalMessages = [...newMessages, aiMessage];
-      setMessages(finalMessages);
-      setStreamingText('');
-      historyRef.current = [...historyRef.current, [userText, response]].slice(
-        -MAX_HISTORY,
-      );
-
-      const updatedGroups = groups.map(g =>
-        g.id === currentGroupId
-          ? {
-              ...g,
-              chats: g.chats.map(c =>
-                c.id === currentChatId
-                  ? {
-                      ...c,
-                      title: newTitle,
-                      messages: finalMessages,
-                      lastOpened: new Date().toISOString(),
-                    }
-                  : c,
-              ),
-            }
-          : g,
-      );
-      setGroups(updatedGroups);
-      debouncedSave(updatedGroups);
-    } catch (e) {
-      console.error('Generation error:', e);
-      Alert.alert('Error', e.message);
-    }
-  }, [
-    inputText,
-    isStreaming,
-    modelLoaded,
-    messages,
-    groups,
-    currentGroupId,
-    currentChatId,
-    title,
-    generateResponse,
-    debouncedSave,
-  ]);
-
   const startNewChat = useCallback(() => {
     const newChatId = Date.now().toString();
+    const currentGrpId = currentGroupIdRef.current;
+
     const newChat = {
       id: newChatId,
       title: '',
@@ -428,21 +280,28 @@ export const useChatLogic = ({ route, navigation }) => {
       startDate: new Date().toISOString(),
       lastOpened: new Date().toISOString(),
     };
-    const updatedGroups = groups.map(g =>
-      g.id === currentGroupId ? { ...g, chats: [...g.chats, newChat] } : g,
+
+    const updatedGroups = groupsRef.current.map(g =>
+      g.id === currentGrpId ? { ...g, chats: [...g.chats, newChat] } : g,
     );
+
     setGroups(updatedGroups);
+    groupsRef.current = updatedGroups;
     setCurrentChatId(newChatId);
     setMessages([]);
+    messagesRef.current = [];
     setTitle('');
+    titleRef.current = '';
     historyRef.current = [];
+    setStreamingText('');
     saveGroups(updatedGroups);
-    navigation.setParams({ groupId: currentGroupId, chatId: newChatId });
-  }, [groups, currentGroupId, navigation, saveGroups]);
+    navigation.setParams({ groupId: currentGrpId, chatId: newChatId });
+  }, [navigation, saveGroups]);
 
   const startNewGroup = useCallback(() => {
     const newGroupId = Date.now().toString();
     const newChatId = (Date.now() + 1).toString();
+
     const newGroup = {
       id: newGroupId,
       name: 'General',
@@ -456,29 +315,35 @@ export const useChatLogic = ({ route, navigation }) => {
         },
       ],
     };
-    const updatedGroups = [...groups, newGroup];
+
+    const updatedGroups = [...groupsRef.current, newGroup];
     setGroups(updatedGroups);
+    groupsRef.current = updatedGroups;
     setCurrentGroupId(newGroupId);
     setCurrentGroupName('General');
     setCurrentChatId(newChatId);
     setMessages([]);
+    messagesRef.current = [];
     setTitle('');
+    titleRef.current = '';
     historyRef.current = [];
+    setStreamingText('');
     saveGroups(updatedGroups);
     navigation.setParams({ groupId: newGroupId, chatId: newChatId });
-  }, [groups, navigation, saveGroups]);
+  }, [navigation, saveGroups]);
 
   const updateGroupName = useCallback(() => {
     if (!newGroupName.trim()) return;
-    const updatedGroups = groups.map(g =>
-      g.id === currentGroupId ? { ...g, name: newGroupName } : g,
+    const updatedGroups = groupsRef.current.map(g =>
+      g.id === currentGroupIdRef.current ? { ...g, name: newGroupName } : g,
     );
     setGroups(updatedGroups);
+    groupsRef.current = updatedGroups;
     setCurrentGroupName(newGroupName);
     setNewGroupName('');
     setGroupNameModalVisible(false);
     saveGroups(updatedGroups);
-  }, [groups, currentGroupId, newGroupName, saveGroups]);
+  }, [newGroupName, saveGroups]);
 
   const formatTime = useCallback(() => {
     const m = Math.floor(seconds / 60);
@@ -486,22 +351,32 @@ export const useChatLogic = ({ route, navigation }) => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }, [seconds]);
 
-  // --- Effects ----------------------------------------------------------------
-
+  // Effects
   useEffect(() => {
+    const resetStreamState = () => {
+      abortRef.current = true;
+      if (isGeneratingRef.current) stopGeneration();
+      setIsStreaming(false);
+      setStreamingText('');
+    };
+
     const unsubscribeFocus = navigation.addListener('focus', () => {
       setIsFocused(true);
       loadGroups();
     });
+
     const unsubscribeBlur = navigation.addListener('blur', () => {
+      resetStreamState();
       setIsFocused(false);
       setSeconds(TIMER_SECONDS);
     });
+
     return () => {
+      resetStreamState();
       unsubscribeFocus();
       unsubscribeBlur();
     };
-  }, [navigation, loadGroups]);
+  }, [navigation, loadGroups, stopGeneration]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -519,7 +394,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   useEffect(() => {
     loadGroups();
-  }, [route.params?.groupId, route.params?.chatId]); // eslint-disable-line
+  }, [route.params?.groupId, route.params?.chatId]);
 
   useEffect(() => {
     return () => clearTimeout(saveTimeoutRef.current);
@@ -532,6 +407,7 @@ export const useChatLogic = ({ route, navigation }) => {
     isStreaming,
     streamingText,
     modelLoaded,
+    isGenerating,
     groups,
     currentGroupId,
     currentGroupName,
@@ -544,6 +420,7 @@ export const useChatLogic = ({ route, navigation }) => {
     newGroupName,
     setNewGroupName,
     sendMessage,
+    stopStreaming,
     startNewChat,
     startNewGroup,
     updateGroupName,
