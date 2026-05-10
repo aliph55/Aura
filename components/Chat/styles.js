@@ -31,8 +31,10 @@ export default StyleSheet.create({
   navigationHeaderTitle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flex: 1,
+    flexShrink: 1,
+    overflow: 'hidden',
   },
   navigationTitle: {
     fontSize: 16,

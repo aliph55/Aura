@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Text,
   StyleSheet,
@@ -6,38 +6,18 @@ import {
   TouchableOpacity,
   StatusBar,
   View,
+  Platform,
 } from 'react-native';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
-import { setUserInfo } from '../redux/userInfo';
-
-import LinearGradient from 'react-native-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSelector } from 'react-redux';
 
 const Home = ({ navigation }) => {
   const [recentChats, setRecentChats] = useState([]);
-
-  const animationRef = useRef(null);
-
-  const [userInfoName, setUserInfoName] = useState();
+  const insets = useSafeAreaInsets(); // ✅ iOS safe area
 
   const user = useSelector(state => state.userInfo?.user);
-  console.log('user: ', user?.user);
-
-  useEffect(() => {
-    //  getCurrentUserInfo();
-  }, []);
-
-  useEffect(() => {
-    // getCurrentUser();
-  }, []);
-  useEffect(() => {
-    console.log(userInfoName);
-  }, []);
 
   const loadRecentChats = async () => {
     try {
@@ -49,17 +29,14 @@ const Home = ({ navigation }) => {
 
       const parsedGroups = JSON.parse(savedGroups);
 
-      // Get all chats from all groups
       const allChats = parsedGroups
         .flatMap(group =>
           group.chats.map(chat => {
-            // Get last message for preview
             const lastMessage =
               chat.messages && chat.messages.length > 0
                 ? chat.messages[chat.messages.length - 1]
                 : null;
 
-            // Show AI response preview (first 50 chars)
             const preview =
               lastMessage && lastMessage.sender === 'ai'
                 ? lastMessage.text.slice(0, 50) +
@@ -112,7 +89,7 @@ const Home = ({ navigation }) => {
       const newChatId = Date.now().toString();
       const newChat = {
         id: newChatId,
-        title: '', // ← "New Chat" yerine BOŞ BIRAKIN
+        title: '',
         startDate: new Date().toISOString(),
         lastOpened: new Date().toISOString(),
         messages: [],
@@ -139,6 +116,9 @@ const Home = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
+  // ✅ iOS bottom safe area için dinamik padding
+  const bottomNavHeight = 80 + insets.bottom;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
@@ -148,87 +128,75 @@ const Home = ({ navigation }) => {
       <View style={styles.bgCircle2} />
       <View style={styles.bgCircle3} />
 
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header — ✅ insets.top ile dinamik safe area */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.logo}>Aura</Text>
             <View style={styles.logoDot} />
           </View>
-          {/**
-           <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => navigation.navigate('About')}
-          >
-            <View style={styles.profileIconBg}>
-              <Icon name="user" size={20} color="#6366F1" />
-            </View>
-          </TouchableOpacity>
-           */}
         </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: bottomNavHeight + 20 }, // ✅ nav yüksekliğine göre
+        ]}
       >
         {/* Hero Section */}
-        <View style={[styles.heroSection]}>
-          <LinearGradient
-            colors={['#6366F1', '#8B5CF6', '#A855F7']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
-          >
+        <View style={styles.heroSection}>
+          {/*
+            ✅ FIX: overflow: 'hidden' kaldırıldı — iOS'ta LinearGradient içindeki
+            içeriği kırpıyordu. heroGlow için borderRadius yeterli.
+          */}
+          <View style={styles.heroCard}>
+            {/* ✅ heroGlow artık overflow olmadan çalışır */}
             <View style={styles.heroGlow} />
-            <View style={styles.heroContent}>
-              <View style={styles.greetingContainer}>
-                <Text style={styles.greeting}>
-                  Hey {user?.user?.givenName || 'There'}
-                </Text>
-                <Text style={styles.waveEmoji}>👋</Text>
-              </View>
-              <Text style={styles.subtitle}>
-                Your AI assistant is ready to help
+
+            <View style={styles.greetingContainer}>
+              <Text style={styles.greeting}>
+                Hey {user?.user?.givenName || 'There'}
               </Text>
-
-              <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                  <Icon name="zap" size={18} color="#FCD34D" />
-                  <Text style={styles.statText}>Fast</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Icon name="shield" size={18} color="#34D399" />
-                  <Text style={styles.statText}>Secure</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Icon name="cpu" size={18} color="#60A5FA" />
-                  <Text style={styles.statText}>Smart</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={startNewChat}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
-                  style={styles.buttonGradient}
-                >
-                  <View style={styles.buttonContent}>
-                    <View style={styles.buttonIconBg}>
-                      <Icon name="plus" size={20} color="#6366F1" />
-                    </View>
-                    <Text style={styles.primaryButtonText}>
-                      Start New Conversation
-                    </Text>
-                    <Icon name="arrow-right" size={18} color="#fff" />
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
+              <Text style={styles.waveEmoji}>👋</Text>
             </View>
-          </LinearGradient>
+
+            <Text style={styles.subtitle}>
+              Your AI assistant is ready to help
+            </Text>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statBox}>
+                <Icon name="zap" size={16} color="#FCD34D" />
+                <Text style={styles.statText}>Fast</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Icon name="shield" size={16} color="#34D399" />
+                <Text style={styles.statText}>Secure</Text>
+              </View>
+              <View style={[styles.statBox, { marginRight: 0 }]}>
+                <Icon name="cpu" size={16} color="#60A5FA" />
+                <Text style={styles.statText}>Smart</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={startNewChat}
+              activeOpacity={0.9}
+            >
+              <View style={styles.buttonContent}>
+                <View style={styles.buttonIconBg}>
+                  <Icon name="plus" size={18} color="#6366F1" />
+                </View>
+                <Text style={styles.primaryButtonText}>
+                  Start New Conversation
+                </Text>
+                <Icon name="arrow-right" size={16} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Recent Chats */}
@@ -266,10 +234,7 @@ const Home = ({ navigation }) => {
               {recentChats.map((chat, index) => (
                 <TouchableOpacity
                   key={chat.id}
-                  style={[
-                    styles.chatItem,
-                    { animationDelay: `${index * 100}ms` },
-                  ]}
+                  style={styles.chatItem}
                   activeOpacity={0.7}
                   onPress={() =>
                     navigation.navigate('Chat', {
@@ -279,12 +244,9 @@ const Home = ({ navigation }) => {
                   }
                 >
                   <View style={styles.chatIconContainer}>
-                    <LinearGradient
-                      colors={['#6366F1', '#8B5CF6']}
-                      style={styles.chatIcon}
-                    >
+                    <View style={styles.chatIcon}>
                       <Icon name="message-circle" size={20} color="#fff" />
-                    </LinearGradient>
+                    </View>
                   </View>
                   <View style={styles.chatContent}>
                     <View style={styles.chatHeader}>
@@ -313,8 +275,13 @@ const Home = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNavContainer}>
+      {/* Bottom Navigation — ✅ insets.bottom ile iOS home indicator boşluğu */}
+      <View
+        style={[
+          styles.bottomNavContainer,
+          { paddingBottom: insets.bottom + 8 },
+        ]}
+      >
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navItemActive} activeOpacity={0.8}>
             <Icon name="home" size={24} color="#6366F1" />
@@ -390,7 +357,6 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 24,
   },
@@ -414,23 +380,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#6366F1',
   },
-  profileButton: {
-    padding: 4,
-  },
-  profileIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1E293B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#334155',
-  },
 
   // Scroll Content
   scrollContent: {
-    paddingBottom: 120,
+    // paddingBottom dinamik olarak inject ediliyor
   },
 
   // Hero Section
@@ -441,21 +394,16 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: 32,
     padding: 28,
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: '#6366F1',
   },
   heroGlow: {
     position: 'absolute',
-    top: -100,
-    right: -100,
+    top: -80,
+    right: -80,
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  heroContent: {
-    position: 'relative',
-    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   greetingContainer: {
     flexDirection: 'row',
@@ -482,7 +430,6 @@ const styles = StyleSheet.create({
   // Stats Row
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
     marginBottom: 24,
   },
   statBox: {
@@ -492,29 +439,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 16,
-    gap: 6,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 8,
   },
   statText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
+    marginLeft: 6,
   },
 
   // Primary Button
   primaryButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 20,
-    overflow: 'hidden',
-  },
-  buttonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   buttonContent: {
     flexDirection: 'row',
@@ -536,46 +481,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 12,
     letterSpacing: 0.3,
-  },
-
-  // Quick Actions
-  quickActions: {
-    paddingHorizontal: 20,
-    marginBottom: 32,
-  },
-  actionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 16,
-  },
-  actionCard: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '500',
   },
 
   // Section
@@ -670,6 +575,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#6366F1',
   },
   chatContent: {
     flex: 1,
@@ -715,7 +621,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    // paddingBottom dinamik inject ediliyor (insets.bottom)
     backgroundColor: 'transparent',
   },
   bottomNav: {
@@ -763,4 +669,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
 export default Home;

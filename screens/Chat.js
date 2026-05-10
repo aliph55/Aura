@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Platform,
-  View,
-  TouchableOpacity,
-  Text,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 import { useChatLogic } from '../components/Chat/ChatLogic';
@@ -35,52 +29,56 @@ const Chat = ({ route, navigation }) => {
     sendMessage,
     formatTime,
   } = useChatLogic({ route, navigation });
-  const insets = useSafeAreaInsets();
 
+  const insets = useSafeAreaInsets();
   const { isLoading } = useModel();
+
   React.useLayoutEffect(() => {
     const timeString = formatTime();
-    const remainingSeconds = timeString
-      .split(':')
-      .reduce(
-        (acc, t, i) => acc + (i === 0 ? parseInt(t) * 60 : parseInt(t)),
-        0,
-      );
+
+    // ✅ Kalan saniyeyi hesapla
+    const parts = timeString.split(':');
+    const remainingSeconds =
+      parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
     const showAdWarning = remainingSeconds > 0 && remainingSeconds <= 30;
 
-    // Compute what to show – fallback chain
+    // ✅ Başlık fallback zinciri
     let displayTitle = title;
     if (!displayTitle && messages.length > 0) {
-      displayTitle = messages[0]?.text?.slice(0, 7); // İlk mesajın ilk 7 karakteri
+      displayTitle = messages[0]?.text?.slice(0, 12);
     } else if (!displayTitle) {
       displayTitle = 'New Chat';
     }
 
     navigation.setOptions({
-      headerTitle: () => (
-        <View style={styles.navigationHeaderTitle}>
+      headerLeft: () => (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginLeft: 8,
+          }}
+        >
           <TouchableOpacity
             onPress={() => navigation.navigate('Home')}
-            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >
-            <MaterialIcons name="arrow-back" size={28} color="#e2e8f0" />
+            <MaterialIcons name="arrow-back" size={24} color="#e2e8f0" />
           </TouchableOpacity>
-
-          <Text style={styles.navigationTitle}>{displayTitle.slice(0, 8)}</Text>
-
-          <Text style={styles.navigationTime}>{timeString}</Text>
-
-          {showAdWarning && (
-            <View style={styles.navigationAdWarning}>
-              <Text style={styles.navigationAdWarningText}>
-                Ad in {remainingSeconds}s
-              </Text>
-            </View>
-          )}
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#f8fafc' }}>
+            {displayTitle.slice(0, 12)}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#94a3b8' }}>{timeString}</Text>
         </View>
       ),
 
-      // ... headerRight, headerLeft vs. aynı kalabilir
+      headerTitle: () => null,
+
+      // ✅ Bunu ekleyin — headerLeft'in genişlemesini sınırla
+      headerLeftContainerStyle: { flex: 1, maxWidth: '60%' },
+      headerRightContainerStyle: { flex: 0 },
+
       headerRight: () => (
         <View style={styles.navigationHeaderRight}>
           {modelLoaded ? (
@@ -99,6 +97,7 @@ const Chat = ({ route, navigation }) => {
               <Text style={styles.navigationStatusText}>Loading...</Text>
             </View>
           ) : null}
+
           <TouchableOpacity
             style={styles.navigationNewButton}
             onPress={startNewGroup}
@@ -107,14 +106,13 @@ const Chat = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       ),
-      headerLeft: () => null,
-      headerBackVisible: true,
-      headerBackTitleVisible: false,
+
+      headerBackVisible: false,
     });
   }, [
     navigation,
-    title, // ← önemli: title değiştiğinde header güncellenir
-    messages, // ← önemli: mesaj gelince fallback çalışsın
+    title,
+    messages,
     formatTime,
     modelLoaded,
     isLoading,

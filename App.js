@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AdsProvider } from './contexts/adsContext'; // ← ekle
 
 import Home from './screens/Home';
-import { Provider, useDispatch } from 'react-redux';
+import { Provider } from 'react-redux';
 import { store } from './redux/store';
 import { ModelProvider } from './contexts/ModelContext';
 import Download from './screens/Download';
@@ -21,10 +20,8 @@ const App = () => {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-
       <Provider store={store}>
         <AdsProvider>
-          {/* ← ekle */}
           <ModelProvider>
             <NavigationContainer>
               <Stack.Navigator
@@ -60,7 +57,6 @@ const App = () => {
                   }}
                   component={Presentation}
                 />
-
                 <Stack.Screen
                   name="Home"
                   options={{
@@ -95,12 +91,9 @@ const App = () => {
             </NavigationContainer>
           </ModelProvider>
         </AdsProvider>
-        {/* ← ekle */}
       </Provider>
     </>
   );
 };
-
-GoogleAuthScreen;
 
 export default App;

@@ -106,7 +106,7 @@ const About = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-        <View style={styles.customHeader}>
+        <View style={[styles.customHeader, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity
             onPress={() => navigation.navigate('Home')}
             hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
     zIndex: 10,
-    paddingTop: 15,
+    paddingTop: 15, // ← bunu değiştirin (15 yerine)
   },
   headerNavigation: {
     fontSize: 22,

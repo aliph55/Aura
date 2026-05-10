@@ -207,44 +207,32 @@ const Presentation = ({ navigation }) => {
       {/* Buttons */}
       <View style={styles.buttonContainer}>
         {currentIndex < slides.length - 1 ? (
-          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-            <Text style={[styles.skipText, { color: current.accent }]}>
-              Skip
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.skipPlaceholder} />
-        )}
-
-        {currentIndex < slides.length - 1 ? (
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={handleNext}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={['#6366f1', '#8b5cf6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.nextGradient}
+          <>
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+              <Text style={[styles.skipText, { color: current.accent }]}>
+                Skip
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={handleNext}
+              activeOpacity={0.85}
             >
-              <Text style={styles.nextText}>Next →</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <View style={styles.nextGradient}>
+                <Text style={styles.nextText}>Next →</Text>
+              </View>
+            </TouchableOpacity>
+          </>
         ) : (
+          // ✅ Placeholder yok, button tam genişlikte ortalı
           <TouchableOpacity
             style={styles.getStartedButton}
             onPress={handleComplete}
             activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={['#6366f1', '#8b5cf6', '#a855f7']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.getStartedGradient}
-            >
+            <View style={styles.getStartedGradient}>
               <Text style={styles.getStartedText}>Get Started ✦</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         )}
       </View>

@@ -30,9 +30,12 @@ const GoogleAuthScreen = ({ navigation }) => {
 
   React.useEffect(() => {
     getCurrentUserInfo();
-  }, []);
+  }, [getCurrentUserInfo]);
 
-  const getCurrentUserInfo = async () => {
+  const isCancelledRef = React.useRef(false);
+
+  const getCurrentUserInfo = React.useCallback(async () => {
+    if (isCancelledRef.current) return; // ✅ cancel olduysa çalışma
     try {
       const currentUser = GoogleSignin.getCurrentUser();
       if (currentUser) {
@@ -40,32 +43,31 @@ const GoogleAuthScreen = ({ navigation }) => {
         navigation.replace('Download');
         return;
       }
-
-      const isSignedIn = await GoogleSignin.isSignedIn();
-      if (!isSignedIn) return;
-
       const info = await GoogleSignin.signInSilently();
-      dispatch(setUserInfo(info?.data));
-      navigation.replace('Download');
+      if (info?.data && !isCancelledRef.current) {
+        dispatch(setUserInfo(info.data));
+        navigation.replace('Download');
+      }
     } catch (error) {
-      if (error.code === statusCodes.SIGN_IN_REQUIRED) {
-        // normal
-      } else {
+      if (error.code !== statusCodes.SIGN_IN_REQUIRED) {
         console.log('Silent sign-in error:', error);
       }
     }
-  };
+  }, [dispatch, navigation]);
 
   const signIn = async () => {
     try {
       await GoogleSignin.hasPlayServices();
       const user = await GoogleSignin.signIn();
+      isCancelledRef.current = false;
       setUser(user.data);
       dispatch(setUserInfo(user.data));
       navigation.replace('Download');
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('Cancelled');
+        isCancelledRef.current = true;
+        // ✅ Cache'i temizle — bir sonraki mount'ta auto-navigate olmasın
+        await GoogleSignin.signOut().catch(() => {});
       } else if (error.code === statusCodes.IN_PROGRESS) {
         console.log('In progress');
       } else {

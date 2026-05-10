@@ -11,7 +11,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
-import LinearGradient from 'react-native-linear-gradient';
 
 const History = ({ navigation }) => {
   const [chats, setChats] = useState([]);
@@ -34,7 +33,6 @@ const History = ({ navigation }) => {
                 ? chat.messages[chat.messages.length - 1]
                 : null;
 
-            // Önizleme metni (mevcut mantık aynı kalabilir)
             let preview = 'No messages yet';
             if (lastMessage) {
               if (lastMessage.sender === 'ai') {
@@ -48,28 +46,18 @@ const History = ({ navigation }) => {
               }
             }
 
-            // ────────────────────── BAŞLIK MANTIĞI ──────────────────────
             let displayTitle = chat.title;
-
             if (!displayTitle) {
               if (chat.messages && chat.messages.length > 0) {
-                const firstMsg = chat.messages[0];
-                // İlk mesaj kullanıcıdan geliyorsa (genelde öyle olur)
-                if (firstMsg.sender === 'user') {
-                  displayTitle = firstMsg.text.slice(0, 7);
-                } else {
-                  // Nadiren AI ilk mesajı atarsa
-                  displayTitle = firstMsg.text.slice(0, 7);
-                }
+                displayTitle = chat.messages[0].text.slice(0, 7);
               } else {
-                displayTitle = 'New Chat'; // veya 'Yeni Sohbet'
+                displayTitle = 'New Chat';
               }
             }
-            // ───────────────────────────────────────────────────────────
 
             return {
               id: chat.id,
-              title: displayTitle, // ← artık hesaplanmış hali
+              title: displayTitle,
               preview: preview,
               time: formatDate(chat.lastOpened),
               lastOpened: chat.lastOpened,
@@ -88,14 +76,12 @@ const History = ({ navigation }) => {
 
   const formatDate = isoString => {
     if (!isoString) return 'recently';
-
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-
     if (diffMins < 1) return 'now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -113,14 +99,12 @@ const History = ({ navigation }) => {
           try {
             const saved = await AsyncStorage.getItem('groups');
             if (!saved) return;
-
             let groups = JSON.parse(saved);
             groups = groups.map(g =>
               g.id === groupId
                 ? { ...g, chats: g.chats.filter(c => c.id !== chatId) }
                 : g,
             );
-
             groups = groups.filter(g => g.chats.length > 0);
             await AsyncStorage.setItem('groups', JSON.stringify(groups));
             setChats(prev => prev.filter(c => c.id !== chatId));
@@ -137,7 +121,6 @@ const History = ({ navigation }) => {
     try {
       const existing = await AsyncStorage.getItem('groups');
       let groups = existing ? JSON.parse(existing) : [];
-
       let generalGroup = groups.find(g => g.name === 'General');
 
       const newChatId = Date.now().toString();
@@ -161,11 +144,7 @@ const History = ({ navigation }) => {
         });
       } else {
         const newGroupId = Date.now().toString();
-        const newGroup = {
-          id: newGroupId,
-          name: 'General',
-          chats: [newChat],
-        };
+        const newGroup = { id: newGroupId, name: 'General', chats: [newChat] };
         groups.push(newGroup);
         await AsyncStorage.setItem('groups', JSON.stringify(groups));
         loadChats();
@@ -197,10 +176,7 @@ const History = ({ navigation }) => {
         })
       }
     >
-      <LinearGradient
-        colors={['rgba(30, 41, 59, 0.88)', 'rgba(15, 23, 42, 0.94)']}
-        style={styles.chatCardGradient}
-      >
+      <View style={styles.chatCardInner}>
         <View
           style={[
             styles.colorAccent,
@@ -251,7 +227,7 @@ const History = ({ navigation }) => {
             <Text style={styles.messageCount}>{item.messageCount}</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 
@@ -259,10 +235,7 @@ const History = ({ navigation }) => {
     <>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      <LinearGradient
-        colors={['#0f172a', '#0f172a', '#1e293b']}
-        style={[styles.container, { paddingTop: insets.top }]}
-      >
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Decorative blobs */}
         <View style={styles.blob1} />
         <View style={styles.blob2} />
@@ -290,14 +263,9 @@ const History = ({ navigation }) => {
             activeOpacity={0.82}
             onPress={startNewChat}
           >
-            <LinearGradient
-              colors={['#8b5cf6', '#7c3aed']}
-              style={styles.newChatGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={styles.newChatInner}>
               <Icon name="plus" size={22} color="#ffffff" />
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -313,12 +281,9 @@ const History = ({ navigation }) => {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={styles.emptyIconContainer}>
-                <LinearGradient
-                  colors={['rgba(139,92,246,0.20)', 'rgba(139,92,246,0.06)']}
-                  style={styles.emptyIconGradient}
-                >
+                <View style={styles.emptyIconCircle}>
                   <Icon name="message-square" size={80} color="#8b5cf6" />
-                </LinearGradient>
+                </View>
               </View>
 
               <Text style={styles.emptyTitle}>No chats yet</Text>
@@ -332,20 +297,15 @@ const History = ({ navigation }) => {
                 activeOpacity={0.85}
                 onPress={startNewChat}
               >
-                <LinearGradient
-                  colors={['#8b5cf6', '#7c3aed']}
-                  style={styles.emptyButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
+                <View style={styles.emptyButtonInner}>
                   <Icon name="plus" size={20} color="#fff" />
                   <Text style={styles.emptyButtonText}>New Conversation</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           }
         />
-      </LinearGradient>
+      </View>
     </>
   );
 };
@@ -409,16 +369,17 @@ const styles = StyleSheet.create({
   },
   newChatButton: {
     borderRadius: 18,
-    overflow: 'hidden',
     elevation: 4,
     shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
   },
-  newChatGradient: {
+  newChatInner: {
     width: 52,
     height: 52,
+    borderRadius: 18,
+    backgroundColor: '#8b5cf6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -435,9 +396,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
   },
-  chatCardGradient: {
+  chatCardInner: {
     padding: 16,
     borderRadius: 20,
+    backgroundColor: '#1e293b',
   },
   colorAccent: {
     ...StyleSheet.absoluteFillObject,
@@ -523,10 +485,11 @@ const styles = StyleSheet.create({
   emptyIconContainer: {
     marginBottom: 40,
   },
-  emptyIconGradient: {
+  emptyIconCircle: {
     width: 150,
     height: 150,
     borderRadius: 75,
+    backgroundColor: 'rgba(139,92,246,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -547,18 +510,19 @@ const styles = StyleSheet.create({
   },
   emptyStartButton: {
     borderRadius: 20,
-    overflow: 'hidden',
     elevation: 6,
     shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
   },
-  emptyButtonGradient: {
+  emptyButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#8b5cf6',
     paddingHorizontal: 36,
     paddingVertical: 18,
+    borderRadius: 20,
     gap: 12,
   },
   emptyButtonText: {
