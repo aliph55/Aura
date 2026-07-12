@@ -16,24 +16,93 @@ export const useModel = () => {
   return ctx;
 };
 
-// ─── Gemma 3 Prompt Builder ───────────────────────────────────────────────────
-export const buildGemmaPrompt = (messages, systemPrompt = '') => {
+// ─── Gemma 4 Prompt Builder ───────────────────────────────────────────────────
+// Gemma 4 drops <start_of_turn>/<end_of_turn> for a new <|turn>role ... <turn|>
+// format, and — unlike Gemma 3 — has a *native* system role. So we no longer
+// need to smuggle the system prompt into the first user turn; it gets its own
+// turn instead.
+//
+// enableThinking=true injects the <|think|> control token, which turns on
+// Gemma 4's chain-of-thought mode. Left off by default since it costs extra
+// tokens/latency, which matters more on-device than in the cloud.
+export const buildGemmaPrompt = (
+  messages,
+  systemPrompt = '',
+  enableThinking = false,
+) => {
   let prompt = '<bos>';
-  let systemInjected = false;
+  const thinkTag = enableThinking ? '<|think|>' : '';
+
+  if (systemPrompt || enableThinking) {
+    prompt += `<|turn>system\n${thinkTag}${systemPrompt}<turn|>\n`;
+  }
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      const prefix =
-        !systemInjected && systemPrompt ? `${systemPrompt}\n\n` : '';
-      systemInjected = true;
-      prompt += `<start_of_turn>user\n${prefix}${msg.content}<end_of_turn>\n`;
+      prompt += `<|turn>user\n${msg.content}<turn|>\n`;
     } else if (msg.role === 'assistant') {
-      prompt += `<start_of_turn>model\n${msg.content}<end_of_turn>\n`;
+      prompt += `<|turn>model\n${msg.content}<turn|>\n`;
     }
   }
 
-  prompt += '<start_of_turn>model\n';
+  prompt += '<|turn>model\n';
   return prompt;
+};
+
+// ─── Thought-channel filter ───────────────────────────────────────────────────
+// Even with thinking disabled, some Gemma 4 sizes still emit an empty
+// <|channel>thought ... <channel|> wrapper before the real answer. This keeps
+// it out of the chat UI, and stays streaming-safe (a marker can arrive split
+// across several tokens).
+const THOUGHT_OPEN = '<|channel>thought';
+const THOUGHT_CLOSE = '<channel|>';
+
+const createThoughtFilter = onVisible => {
+  let buffer = '';
+  let inThought = false;
+
+  const feed = token => {
+    buffer += token;
+
+    for (;;) {
+      if (!inThought) {
+        const openIdx = buffer.indexOf(THOUGHT_OPEN);
+        if (openIdx === -1) {
+          // Hold back a tail as long as the marker in case it's mid-arrival.
+          const safeLen = Math.max(0, buffer.length - THOUGHT_OPEN.length);
+          if (safeLen > 0) {
+            onVisible(buffer.slice(0, safeLen));
+            buffer = buffer.slice(safeLen);
+          }
+          return;
+        }
+        if (openIdx > 0) onVisible(buffer.slice(0, openIdx));
+        buffer = buffer.slice(openIdx + THOUGHT_OPEN.length);
+        inThought = true;
+      } else {
+        const closeIdx = buffer.indexOf(THOUGHT_CLOSE);
+        if (closeIdx === -1) {
+          buffer = buffer.slice(-THOUGHT_CLOSE.length);
+          return;
+        }
+        buffer = buffer.slice(closeIdx + THOUGHT_CLOSE.length);
+        inThought = false;
+        // loop again — there could be more visible text (or another marker)
+        // left in the buffer after the close tag
+      }
+    }
+  };
+
+  // MUST be called once generation finishes. feed() always holds back a short
+  // tail (in case it's the start of a marker), so without this, the last
+  // ~17 characters of every response would be silently dropped — and short
+  // replies could disappear completely.
+  const flush = () => {
+    if (!inThought && buffer) onVisible(buffer);
+    buffer = '';
+  };
+
+  return { feed, flush };
 };
 
 // ─── GPU Layers (Android / iOS) ───────────────────────────────────────────────
@@ -75,7 +144,7 @@ export const ModelProvider = ({ children }) => {
           llamaCtxRef.current = null;
         }
 
-        console.log('🧠 Loading Gemma 3 1B-IT...');
+        console.log('🧠 Loading Gemma 4 E2B-IT...');
 
         llamaCtxRef.current = await initLlama({
           model: modelPath,
@@ -88,7 +157,7 @@ export const ModelProvider = ({ children }) => {
         });
 
         setModelLoaded(true);
-        console.log('✅ Gemma 3 1B-IT ready');
+        console.log('✅ Gemma 4 E2B-IT ready');
         return llamaCtxRef.current;
       } catch (e) {
         console.error('❌ Model load failed:', e.message);
@@ -120,8 +189,14 @@ export const ModelProvider = ({ children }) => {
       setIsGenerating(true);
 
       try {
-        const prompt = buildGemmaPrompt(messages, systemPrompt);
+        const enableThinking = params.thinking ?? false;
+        const prompt = buildGemmaPrompt(messages, systemPrompt, enableThinking);
         let fullResponse = '';
+
+        const thoughtFilter = createThoughtFilter(visibleText => {
+          fullResponse += visibleText;
+          onToken?.(visibleText);
+        });
 
         await llamaCtxRef.current.completion(
           {
@@ -131,16 +206,20 @@ export const ModelProvider = ({ children }) => {
             top_p: params.top_p ?? 0.9,
             top_k: params.top_k ?? 40,
             repeat_penalty: params.repeat_penalty ?? 1.1,
-            stop: ['<end_of_turn>', '<start_of_turn>'],
+            stop: ['<turn|>', '<|turn>'],
           },
           ({ token }) => {
             if (abortRef.current) return;
-            fullResponse += token;
-            onToken?.(token);
+            thoughtFilter.feed(token);
           },
         );
 
         if (abortRef.current) return '';
+
+        // Flush whatever's left in the buffer now that generation has ended —
+        // otherwise the tail of every response gets swallowed (see flush()
+        // comment above).
+        thoughtFilter.flush();
 
         return fullResponse.trim();
       } catch (e) {

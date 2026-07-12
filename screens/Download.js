@@ -16,16 +16,20 @@ import { useModel } from '../contexts/ModelContext';
 
 const { width } = Dimensions.get('window');
 
-// ✅ Gemma 3 1B-IT Q4_K_M (ggml-org resmi)
+// ✅ Gemma 4 E2B-IT Q4_K_M (unsloth GGUF — ggml-org's own repo only ships
+// Q8_0/BF16 for this size, so unsloth is the source for a mobile-sized Q4_K_M)
 const MODEL_URL =
-  'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf';
+  'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf';
 
-const HF_TOKEN = 'hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'; // ← BURAYA KENDİ TOKEN'INI YAZ
+// Gemma 4 ships under Apache 2.0 and is NOT gated like Gemma 3 was, so this can
+// stay empty. Only set it if you start hitting Hugging Face's anonymous rate
+// limit on downloads: https://huggingface.co/settings/tokens
+const HF_TOKEN = '';
 
-const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/gemma-3-1b-it-Q4_K_M.gguf`;
+const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/gemma-4-E2B-it-Q4_K_M.gguf`;
 
-const EXPECTED_MODEL_SIZE = 806_000_000; // ~806 MB
-const MIN_VALID_SIZE = Math.floor(EXPECTED_MODEL_SIZE * 0.85); // ~685 MB
+const EXPECTED_MODEL_SIZE = 3_110_000_000; // ~3.11 GB
+const MIN_VALID_SIZE = Math.floor(EXPECTED_MODEL_SIZE * 0.85); // ~2.64 GB
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -73,9 +77,7 @@ const Download = ({ onDownloadComplete }) => {
         progressDivider: 1,
         connectionTimeout: 30_000,
         readTimeout: 60_000,
-        headers: {
-          Authorization: `Bearer ${HF_TOKEN}`,
-        },
+        headers: HF_TOKEN ? { Authorization: `Bearer ${HF_TOKEN}` } : undefined,
         begin: res => {
           const total =
             res.contentLength > 0 ? res.contentLength : EXPECTED_MODEL_SIZE;
@@ -94,10 +96,10 @@ const Download = ({ onDownloadComplete }) => {
       downloadTaskRef.current = downloadTask;
       const result = await downloadTask.promise;
 
-      // Authentication hatası kontrolü
+      // Authentication / rate-limit hatası kontrolü
       if (result.statusCode === 401 || result.statusCode === 403) {
         throw new Error(
-          'Authentication failed!\n\nGemma modeli gated (korumalı). Lütfen:\n1. huggingface.co adresine gir\n2. Gemma model sayfasında lisansı kabul et\n3. https://huggingface.co/settings/tokens adresinden token oluştur\n4. Tokenı Download.js dosyasına yapıştır',
+          'Authentication or rate-limit error.\n\nGemma 4 is Apache 2.0 and NOT gated, so this usually means:\n1. Hugging Face anonymous download rate limit\n2. The model URL moved/changed\n\nIf it keeps happening, create a token at https://huggingface.co/settings/tokens and set HF_TOKEN in Download.tsx.',
         );
       }
 
@@ -110,7 +112,9 @@ const Download = ({ onDownloadComplete }) => {
       if (stat.size < MIN_VALID_SIZE) {
         await RNFS.unlink(MODEL_LOCAL_PATH);
         throw new Error(
-          `Downloaded file too small (${Math.round(stat.size / 1_000_000)} MB).`,
+          `Downloaded file too small (${Math.round(
+            stat.size / 1_000_000,
+          )} MB).`,
         );
       }
 
@@ -153,10 +157,10 @@ const Download = ({ onDownloadComplete }) => {
       setIsDownloading(true);
       setStatusMessage('Loading from assets...');
 
-      const exists = await RNFS.existsAssets('gemma-3-1b-it-Q4_K_M.gguf');
+      const exists = await RNFS.existsAssets('gemma-4-E2B-it-Q4_K_M.gguf');
       if (!exists) throw new Error('Model not found in assets folder.');
 
-      await RNFS.copyFileAssets('gemma-3-1b-it-Q4_K_M.gguf', MODEL_LOCAL_PATH);
+      await RNFS.copyFileAssets('gemma-4-E2B-it-Q4_K_M.gguf', MODEL_LOCAL_PATH);
 
       const stat = await RNFS.stat(MODEL_LOCAL_PATH);
       if (stat.size < MIN_VALID_SIZE)
@@ -266,8 +270,9 @@ const Download = ({ onDownloadComplete }) => {
                 </View>
                 <View style={styles.infoDivider} />
                 <Text style={styles.infoText}>
-                  • Model: Gemma 3 1B-IT (Q4_K_M){'\n'}• File size: ~806 MB
-                  {'\n'}• One-time download{'\n'}• May take a few minutes
+                  • Model: Gemma 4 E2B-IT (Q4_K_M){'\n'}• File size: ~3.1 GB
+                  {'\n'}• One-time download — Wi-Fi recommended{'\n'}• May take
+                  a few minutes
                 </Text>
               </View>
             </View>
