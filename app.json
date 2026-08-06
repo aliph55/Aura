@@ -1,4 +1,8 @@
 {
   "name": "Aura",
-  "displayName": "Aura"
+  "displayName": "Aura",
+  "react-native-google-mobile-ads": {
+
+    "ios_app_id": "ca-app-pub-6721519204185712~5904455601"
+  }
 }

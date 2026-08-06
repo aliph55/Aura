@@ -18,3 +18,30 @@
 
 # Safe Area Context
 -keep class com.th3rdwave.safeareacontext.** { *; }
+
+# React Native
+-keep class com.facebook.react.** { *; }
+-keep class com.facebook.hermes.** { *; }
+-keep class com.swmansion.** { *; }
+
+# Google Sign In
+-keep class com.google.android.gms.** { *; }
+
+# Safe Area Context
+-keep class com.th3rdwave.safeareacontext.** { *; }
+
+# ← BUNLARI EKLE
+# ONNX Runtime
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+-keep class com.microsoft.onnxruntime.** { *; }
+-dontwarn com.microsoft.onnxruntime.**
+
+# React Native FS
+-keep class com.rnfs.** { *; }
+
+# AsyncStorage
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+
+# Vector Icons
+-keep class com.oblador.vectoricons.** { *; }
